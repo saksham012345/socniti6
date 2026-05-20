@@ -1,12 +1,12 @@
 const express = require("express");
 const cors = require("cors");
-const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
 const dotenv = require("dotenv");
 const { ApolloServer } = require("@apollo/server");
 const { startStandaloneServer } = require("@apollo/server/standalone");
 const { buildSubgraphSchema } = require("@apollo/subgraph");
 const { parse } = require("graphql");
+const { connectDb, runMigrations } = require("@socniti/shared");
 
 dotenv.config({ path: "../../.env" });
 dotenv.config();
@@ -15,7 +15,6 @@ const Donation = require("./models/Donation");
 
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || "development-secret-key-change-me";
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/socniti";
 const REST_PORT = 4007;
 const GRAPHQL_PORT = 4008;
 
@@ -288,13 +287,10 @@ const server = new ApolloServer({
 });
 
 // Start services
-mongoose
-  .connect(MONGODB_URI, { 
-    serverSelectionTimeoutMS: 30000,
-    socketTimeoutMS: 45000,
-  })
+connectDb()
+  .then(() => runMigrations())
   .then(async () => {
-    console.log("✅ MongoDB connected successfully");
+    console.log("✅ PostgreSQL connected successfully");
 
     // Start REST API
     app.listen(REST_PORT, () => {
@@ -333,13 +329,6 @@ mongoose
     console.log("=".repeat(60) + "\n");
   })
   .catch((error) => {
-    console.error("\n" + "=".repeat(60));
-    console.error("❌ DONATION SERVICE FAILED TO START");
-    console.error("=".repeat(60));
-    console.error("Error:", error.message);
-    console.error("\n💡 Possible solutions:");
-    console.error("  1. Check if MongoDB is running");
-    console.error(`  2. Check if ports ${REST_PORT} or ${GRAPHQL_PORT} are in use`);
-    console.error("=".repeat(60) + "\n");
+    console.error("❌ DONATION SERVICE FAILED TO START:", error.message);
     process.exit(1);
   });

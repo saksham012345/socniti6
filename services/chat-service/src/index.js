@@ -2,24 +2,25 @@ const express = require("express");
 const { createServer } = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
-const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
 const dotenv = require("dotenv");
 const { ApolloServer } = require("@apollo/server");
 const { startStandaloneServer } = require("@apollo/server/standalone");
 const { buildSubgraphSchema } = require("@apollo/subgraph");
 const { parse } = require("graphql");
+const { connectDb, runMigrations } = require("@socniti/shared");
 
 dotenv.config({ path: "../../.env" });
 dotenv.config();
 
 const Message = require("./models/Message");
+const Ticket = require("./models/Ticket");
+const TicketMessage = require("./models/TicketMessage");
 
 const app = express();
 const httpServer = createServer(app);
 
 const JWT_SECRET = process.env.JWT_SECRET || "development-secret-key-change-me";
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/socniti";
 const PORT = 4003;
 const GRAPHQL_PORT = 4006;
 
@@ -157,6 +158,43 @@ io.on("connection", (socket) => {
     console.log(`❌ User disconnected: ${socket.username}`);
     activeUsers.delete(socket.userId);
   });
+
+  // Ticket Rooms
+  socket.on("join-ticket", async (ticketId) => {
+    socket.join(`ticket-${ticketId}`);
+    console.log(`📍 ${socket.username} joined ticket ${ticketId}`);
+    
+    try {
+      const messages = await TicketMessage.find({ ticketId });
+      socket.emit("ticket-message-history", messages);
+    } catch (err) {
+      console.error("Error fetching ticket messages:", err);
+    }
+  });
+
+  socket.on("leave-ticket", (ticketId) => {
+    socket.leave(`ticket-${ticketId}`);
+  });
+
+  socket.on("send-ticket-message", async (data) => {
+    const { ticketId, content } = data;
+    
+    if (!content || !content.trim()) return socket.emit("error", { message: "Empty message" });
+
+    try {
+      const message = await TicketMessage.create({
+        ticketId,
+        senderId: socket.userId,
+        senderName: socket.username,
+        content: content.trim()
+      });
+
+      io.to(`ticket-${ticketId}`).emit("new-ticket-message", message);
+    } catch (err) {
+      console.error("Error saving ticket message:", err);
+      socket.emit("error", { message: "Failed to send ticket message" });
+    }
+  });
 });
 
 // REST endpoints
@@ -180,6 +218,56 @@ app.get("/api/chat/events/:eventId/messages", async (req, res) => {
       .limit(limit);
     
     res.json({ messages: messages.reverse() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Ticket REST Endpoints
+app.post("/api/chat/tickets", async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const ticket = await Ticket.create({
+      userId: decoded.sub || decoded.id,
+      userName: decoded.username,
+      subject: req.body.subject,
+    });
+    res.status(201).json(ticket);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/chat/tickets", async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const isAdmin = decoded.role === "admin" || decoded.role === "agent";
+    
+    const conditions = isAdmin ? {} : { userId: decoded.sub || decoded.id };
+    if (req.query.status) conditions.status = req.query.status;
+    
+    const tickets = await Ticket.find(conditions);
+    res.json(tickets);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/chat/tickets/:ticketId/messages", async (req, res) => {
+  try {
+    const messages = await TicketMessage.find({ ticketId: req.params.ticketId });
+    res.json(messages);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch("/api/chat/tickets/:ticketId/status", async (req, res) => {
+  try {
+    const ticket = await Ticket.update(req.params.ticketId, { status: req.body.status });
+    res.json(ticket);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -251,13 +339,9 @@ const server = new ApolloServer({
 });
 
 // Start services
-mongoose
-  .connect(MONGODB_URI, { 
-    serverSelectionTimeoutMS: 30000,
-    socketTimeoutMS: 45000,
-  })
+connectDb()
+  .then(() => runMigrations())
   .then(async () => {
-    console.log("✅ MongoDB connected successfully");
 
     // Start WebSocket server
     httpServer.listen(PORT, () => {
@@ -284,13 +368,8 @@ mongoose
     console.log("=".repeat(60) + "\n");
   })
   .catch((error) => {
-    console.error("\n" + "=".repeat(60));
-    console.error("❌ CHAT SERVICE FAILED TO START");
-    console.error("=".repeat(60));
-    console.error("Error:", error.message);
-    console.error("\n💡 Possible solutions:");
-    console.error("  1. Check if MongoDB is running");
+    console.error("❌ CHAT SERVICE FAILED TO START:", error.message);
+    console.error(`  1. Check DATABASE_URL in .env`);
     console.error(`  2. Check if ports ${PORT} or ${GRAPHQL_PORT} are in use`);
-    console.error("=".repeat(60) + "\n");
     process.exit(1);
   });

@@ -23,17 +23,17 @@ const ERRORS = {
 };
 
 const generateToken = (user) => {
-    return jwt.sign(
-        { 
-            sub: user._id.toString(),
-            id: user._id.toString(),
-            username: user.username,
-            email: user.email, 
-            role: user.role 
-        },
-        JWT_SECRET,
-        { expiresIn: "30d" }
-    );
+  return jwt.sign(
+    {
+      sub: user.id,
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role
+    },
+    JWT_SECRET,
+    { expiresIn: "30d" }
+  );
 };
 
 const validateUsername = (username) => {
@@ -440,10 +440,10 @@ const resolvers = {
 
     User: {
         __resolveReference(user) {
-            return User.findById(user.id).exec();
+            return User.findById(user.id);
         },
         id(user) {
-            return user._id.toString();
+            return user.id || user._id;
         }
     },
 };

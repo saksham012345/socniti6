@@ -17,6 +17,7 @@
     "graphql-tag": "^2.12.6",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.9.5",
-    "nodemailer": "^8.0.2"
+    "nodemailer": "^8.0.2",
+    "pg": "^8.20.0"
   }
 }
