@@ -154,6 +154,24 @@ async function start() {
 
   app.get("/health", (_, res) => res.json({ status: "ok", service: "socniti-backend", port: PORT, activeUsers: activeUsers.size }));
 
+  // Keep-alive: ping self every 14 minutes to prevent Render free tier cold starts
+  if (process.env.NODE_ENV === "production" && process.env.RENDER_EXTERNAL_URL) {
+    const keepAliveUrl = `${process.env.RENDER_EXTERNAL_URL}/health`;
+    setInterval(async () => {
+      try {
+        const https = require("https");
+        https.get(keepAliveUrl, (res) => {
+          console.log(`🏓 Keep-alive ping: ${res.statusCode}`);
+        }).on("error", (err) => {
+          console.warn("Keep-alive ping failed:", err.message);
+        });
+      } catch (err) {
+        console.warn("Keep-alive error:", err.message);
+      }
+    }, 14 * 60 * 1000); // every 14 minutes
+    console.log(`🏓 Keep-alive enabled → ${keepAliveUrl}`);
+  }
+
   // ── Start ───────────────────────────────────────────────────────
   httpServer.listen(PORT, () => {
     console.log("\n" + "=".repeat(60));

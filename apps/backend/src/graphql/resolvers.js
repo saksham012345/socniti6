@@ -129,8 +129,9 @@ const resolvers = {
       } else {
         await User.create({ fullName, username: nu, email: ne, password: hashedPassword, role: role||"user", otp, otpExpires, verified: false });
       }
-      const sent = await sendOtpEmail(ne, otp, fullName);
-      return { success: true, message: sent ? `OTP sent to ${ne}` : `OTP: ${otp} (email failed)` };
+      // Fire email async — don't block the response on email delivery
+      sendOtpEmail(ne, otp, fullName).catch(err => console.error("Email send error:", err.message));
+      return { success: true, message: `OTP sent to ${ne}. Check your email or server logs.` };
     },
 
     verifySignupOtp: async (_, { email, otp }) => {
@@ -162,7 +163,7 @@ const resolvers = {
       const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
       if (!user) user = await User.create({ fullName, username: ne.split("@")[0], email: ne, password: hashedPassword, role: role||"user", otp, otpExpires, verified: false });
       else { user.fullName = fullName; user.password = hashedPassword; user.otp = otp; user.otpExpires = otpExpires; await user.save(); }
-      await sendOtpEmail(ne, otp, fullName);
+      sendOtpEmail(ne, otp, fullName).catch(err => console.error("Email send error:", err.message));
       return { success: true, message: "OTP sent to your email" };
     },
 
@@ -172,7 +173,7 @@ const resolvers = {
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
       user.otp = otp; user.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
       await user.save();
-      await sendOtpEmail(email, otp, user.fullName);
+      sendOtpEmail(email, otp, user.fullName).catch(err => console.error("Email send error:", err.message));
       return { success: true, message: "OTP sent" };
     },
 
