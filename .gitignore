@@ -2,11 +2,14 @@ node_modules
 dist
 .env
 .env.local
+.env.production
 coverage
 .DS_Store
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-.github
-github
+# Keep .env.example files (they're safe to commit)
+!.env.example
+!apps/frontend/.env.example
+!apps/backend/.env.example

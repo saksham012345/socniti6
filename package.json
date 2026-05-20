@@ -3,18 +3,16 @@
   "private": true,
   "version": "1.0.0",
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "apps/*"
   ],
   "scripts": {
-    "precheck": "node check-prerequisites.js",
+    "build": "echo 'No build step required'",
+    "start": "npm run start --workspace @socniti/backend",
     "dev": "concurrently \"npm run dev --workspace @socniti/frontend\" \"npm run dev --workspace @socniti/backend\"",
     "dev:frontend": "npm run dev --workspace @socniti/frontend",
-    "lint": "npm run lint --workspaces --if-present",
     "dev:backend": "npm run dev --workspace @socniti/backend"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2",
-    "mongodb-memory-server": "^11.1.0"
+    "concurrently": "^9.1.2"
   }
 }

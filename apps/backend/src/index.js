@@ -20,6 +20,31 @@ const Message = require("./models/Message");
 const JWT_SECRET = process.env.JWT_SECRET || "development-secret";
 const PORT = process.env.PORT || 8080;
 
+// Build CORS origin list from CLIENT_URL env (supports comma-separated list)
+const getAllowedOrigins = () => {
+  const raw = process.env.CLIENT_URL || "";
+  const origins = raw.split(",").map(o => o.trim()).filter(Boolean);
+  // Always allow localhost in development
+  if (process.env.NODE_ENV !== "production") {
+    origins.push("http://localhost:5173", "http://localhost:3000");
+  }
+  return origins.length > 0 ? origins : "*";
+};
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    const allowed = getAllowedOrigins();
+    // Allow requests with no origin (mobile apps, curl, Render health checks)
+    if (!origin) return callback(null, true);
+    if (allowed === "*") return callback(null, true);
+    if (allowed.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-apollo-operation-name", "apollo-require-preflight"],
+};
+
 async function start() {
   // ── DB ──────────────────────────────────────────────────────────
   await connectDb();
@@ -29,11 +54,18 @@ async function start() {
   const app = express();
   const httpServer = createServer(app);
 
-  app.use(cors({ origin: "*", credentials: true }));
+  app.use(cors(corsOptions));
+  app.options("*", cors(corsOptions)); // pre-flight for all routes
   app.use(express.json({ limit: "2mb" }));
 
   // ── Socket.IO ───────────────────────────────────────────────────
-  const io = new Server(httpServer, { cors: { origin: "*", methods: ["GET","POST"] } });
+  const io = new Server(httpServer, {
+    cors: {
+      origin: getAllowedOrigins(),
+      methods: ["GET", "POST"],
+      credentials: true,
+    },
+  });
   const activeUsers = new Map();
 
   io.use((socket, next) => {
