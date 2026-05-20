@@ -5,16 +5,16 @@ const dotenv = require("dotenv");
 
 dotenv.config();
 
-const port = 8080;
+const port = process.env.PORT || 8080;
 
 console.log("🔄 Starting API Gateway...");
 // GraphQL Federation Gateway
 
-// Hardcoded local URLs for development
-const authServiceUrl = "http://localhost:4001/graphql";
-const eventServiceUrl = "http://localhost:4005/graphql";
-const chatServiceUrl = "http://localhost:4006/graphql";
-const donationServiceUrl = "http://localhost:4008/graphql";
+// URLs for subgraphs (Railway / Prod / Dev)
+const authServiceUrl = process.env.AUTH_SERVICE_URL || "http://localhost:4001/graphql";
+const eventServiceUrl = process.env.EVENT_SERVICE_URL || "http://localhost:4005/graphql";
+const chatServiceUrl = process.env.CHAT_SERVICE_URL || "http://localhost:4006/graphql";
+const donationServiceUrl = process.env.DONATION_SERVICE_URL || "http://localhost:4008/graphql";
 
 const gateway = new ApolloGateway({
   supergraphSdl: new IntrospectAndCompose({
