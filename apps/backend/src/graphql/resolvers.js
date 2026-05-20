@@ -15,11 +15,10 @@ const toIso = (d) => (d instanceof Date ? d.toISOString() : d ? new Date(d).toIS
 const generateToken = (user) => jwt.sign({ sub: user.id, id: user.id, username: user.username, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: "30d" });
 
 const sendOtpEmail = async (email, otp, fullName) => {
+  // Always log OTP to server console (visible in Render logs)
+  console.log(`\n📧 OTP for ${email}: ${otp}\n`);
   try {
-    if (!process.env.SMTP_HOST) {
-      console.log(`\n📧 OTP for ${email}: ${otp}\n`);
-      return true;
-    }
+    if (!process.env.SMTP_HOST) return true;
     const t = nodemailer.createTransport({ host: process.env.SMTP_HOST, port: process.env.SMTP_PORT||587, secure: process.env.SMTP_PORT==465, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
     await t.sendMail({ from: process.env.SMTP_FROM||"SOCNITI <noreply@socniti.com>", to: email, subject: "Verify your SOCNITI Account", html: `<div style="font-family:Arial;max-width:600px;margin:0 auto"><h2 style="color:#112A22">Welcome to SOCNITI!</h2><p>Hello ${fullName},</p><p>Your verification code is:</p><div style="background:#f3f4f6;padding:20px;text-align:center;font-size:32px;font-weight:bold;letter-spacing:5px;color:#4A7C59">${otp}</div><p style="color:#6b7280;font-size:14px">Expires in 10 minutes.</p></div>` });
     return true;
