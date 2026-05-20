@@ -4,19 +4,14 @@
   "version": "1.0.0",
   "workspaces": [
     "apps/*",
-    "services/*",
     "packages/*"
   ],
   "scripts": {
     "precheck": "node check-prerequisites.js",
-    "dev": "concurrently \"npm run dev --workspace @socniti/frontend\" \"npm run dev --workspace @socniti/api-gateway\" \"npm run dev --workspace @socniti/auth-service\" \"npm run dev --workspace @socniti/event-service\" \"npm run dev --workspace @socniti/chat-service\" \"npm run dev --workspace @socniti/donation-service\"",
+    "dev": "concurrently \"npm run dev --workspace @socniti/frontend\" \"npm run dev --workspace @socniti/backend\"",
     "dev:frontend": "npm run dev --workspace @socniti/frontend",
-    "dev:gateway": "npm run dev --workspace @socniti/api-gateway",
-    "dev:auth": "npm run dev --workspace @socniti/auth-service",
-    "dev:events": "npm run dev --workspace @socniti/event-service",
-    "dev:chat": "npm run dev --workspace @socniti/chat-service",
-    "dev:donation": "npm run dev --workspace @socniti/donation-service",
-    "lint": "npm run lint --workspaces --if-present"
+    "lint": "npm run lint --workspaces --if-present",
+    "dev:backend": "npm run dev --workspace @socniti/backend"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

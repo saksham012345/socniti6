@@ -1,42 +1,28 @@
 import axios from "axios";
 
-// Hardcoded API URLs for development
-const API_GATEWAY_URL = "http://localhost:8080";
-const EVENT_SERVICE_URL = "http://localhost:4002";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8080";
 
-// API instance for GraphQL (via API Gateway)
+// Main API instance — GraphQL + REST all on one backend
 const api = axios.create({
-  baseURL: API_GATEWAY_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
+  baseURL: BACKEND_URL,
+  headers: { "Content-Type": "application/json" },
   withCredentials: false,
 });
 
-// API instance for Event REST API
+// eventApi points to the same backend (REST /api/events)
 export const eventApi = axios.create({
-  baseURL: EVENT_SERVICE_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
+  baseURL: BACKEND_URL,
+  headers: { "Content-Type": "application/json" },
   withCredentials: false,
 });
 
-// Add auth token to requests if available
-api.interceptors.request.use((config) => {
+const addAuth = (config) => {
   const token = localStorage.getItem("socniti_token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
-});
+};
 
-eventApi.interceptors.request.use((config) => {
-  const token = localStorage.getItem("socniti_token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+api.interceptors.request.use(addAuth);
+eventApi.interceptors.request.use(addAuth);
 
 export default api;
