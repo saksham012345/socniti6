@@ -20,29 +20,44 @@ const Message = require("./models/Message");
 const JWT_SECRET = process.env.JWT_SECRET || "development-secret";
 const PORT = process.env.PORT || 8080;
 
-// Build CORS origin list from CLIENT_URL env (supports comma-separated list)
+// CORS — allow all Vercel preview URLs + explicit CLIENT_URL list
 const getAllowedOrigins = () => {
   const raw = process.env.CLIENT_URL || "";
-  const origins = raw.split(",").map(o => o.trim()).filter(Boolean);
-  // Always allow localhost in development
-  if (process.env.NODE_ENV !== "production") {
-    origins.push("http://localhost:5173", "http://localhost:3000");
-  }
-  return origins.length > 0 ? origins : "*";
+  const explicit = raw.split(",").map(o => o.trim()).filter(Boolean);
+  return explicit;
 };
 
 const corsOptions = {
   origin: (origin, callback) => {
-    const allowed = getAllowedOrigins();
-    // Allow requests with no origin (mobile apps, curl, Render health checks)
+    // No origin = server-to-server, curl, health checks → allow
     if (!origin) return callback(null, true);
-    if (allowed === "*") return callback(null, true);
+
+    // In development allow everything
+    if (process.env.NODE_ENV !== "production") return callback(null, true);
+
+    const allowed = getAllowedOrigins();
+
+    // Always allow any *.vercel.app subdomain (covers preview deployments)
+    if (origin.endsWith(".vercel.app")) return callback(null, true);
+
+    // Always allow localhost
+    if (origin.startsWith("http://localhost") || origin.startsWith("http://127.0.0.1")) return callback(null, true);
+
+    // Check explicit list
     if (allowed.includes(origin)) return callback(null, true);
+
+    // Log and reject
+    console.warn(`CORS blocked: ${origin}`);
     callback(new Error(`CORS: origin ${origin} not allowed`));
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "x-apollo-operation-name", "apollo-require-preflight"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "x-apollo-operation-name",
+    "apollo-require-preflight",
+  ],
 };
 
 async function start() {
@@ -114,18 +129,24 @@ async function start() {
   const apollo = new ApolloServer({
     typeDefs,
     resolvers,
+    introspection: true, // keep enabled so playground works
     formatError: (err) => { console.error("GraphQL Error:", err.message); return { message: err.message, code: err.extensions?.code || "INTERNAL_SERVER_ERROR" }; },
   });
   await apollo.start();
 
-  app.use("/graphql", expressMiddleware(apollo, {
-    context: async ({ req }) => {
-      const token = (req.headers.authorization || "").replace("Bearer ", "");
-      if (!token) return { user: null };
-      try { return { user: jwt.verify(token, JWT_SECRET) }; }
-      catch { return { user: null }; }
-    }
-  }));
+  app.use(
+    "/graphql",
+    cors(corsOptions), // apply CORS specifically to /graphql too
+    express.json({ limit: "2mb" }),
+    expressMiddleware(apollo, {
+      context: async ({ req }) => {
+        const token = (req.headers.authorization || "").replace("Bearer ", "");
+        if (!token) return { user: null };
+        try { return { user: jwt.verify(token, JWT_SECRET) }; }
+        catch { return { user: null }; }
+      }
+    })
+  );
 
   // ── REST Routes ─────────────────────────────────────────────────
   app.use("/api/events", eventRoutes);
