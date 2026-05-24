@@ -15,6 +15,7 @@ import ContactPage from "./pages/ContactPage";
 import ProfilePage from "./pages/ProfilePage";
 import SettingsPage from "./pages/SettingsPage";
 import SupportPage from "./pages/SupportPage";
+import TicketDetailPage from "./pages/TicketDetailPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AgentDashboardPage from "./pages/AgentDashboardPage";
 
@@ -101,6 +102,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <SupportPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tickets/:ticketId"
+            element={
+              <ProtectedRoute>
+                <TicketDetailPage />
               </ProtectedRoute>
             }
           />

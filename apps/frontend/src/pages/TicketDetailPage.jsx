@@ -2,12 +2,13 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Send, X, Clock, AlertCircle } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { BACKEND_URL, eventApi } from "../lib/api";
 import toast from "react-hot-toast";
 import io from "socket.io-client";
 
 export default function TicketDetailPage() {
   const { ticketId } = useParams();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const navigate = useNavigate();
   const [ticket, setTicket] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -19,14 +20,14 @@ export default function TicketDetailPage() {
 
   useEffect(() => {
     fetchTicketDetails();
-    initializeSocket();
+    if (token) initializeSocket();
 
     return () => {
       if (socketRef.current) {
         socketRef.current.disconnect();
       }
     };
-  }, [ticketId]);
+  }, [ticketId, token]);
 
   useEffect(() => {
     scrollToBottom();
@@ -38,8 +39,7 @@ export default function TicketDetailPage() {
 
   const initializeSocket = () => {
     try {
-      const token = localStorage.getItem("token");
-      socketRef.current = io("http://localhost:4002", {
+      socketRef.current = io(BACKEND_URL.replace(/\/$/, ""), {
         auth: { token },
         transports: ["websocket", "polling"]
       });
@@ -63,22 +63,13 @@ export default function TicketDetailPage() {
   const fetchTicketDetails = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
-      const res = await fetch(`http://localhost:4002/api/tickets/${ticketId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setTicket(data.ticket);
-        setMessages(data.messages || []);
-      } else {
-        toast.error("Failed to load ticket");
-        navigate("/dashboard");
-      }
+      const res = await eventApi.get(`/api/tickets/${ticketId}`);
+      setTicket(res.data.ticket);
+      setMessages(res.data.messages || []);
     } catch (err) {
       toast.error("Error loading ticket");
       console.error(err);
+      navigate("/dashboard");
     } finally {
       setLoading(false);
     }
@@ -90,32 +81,10 @@ export default function TicketDetailPage() {
 
     try {
       setSending(true);
-      const token = localStorage.getItem("token");
-
-      const res = await fetch(`http://localhost:4002/api/tickets/${ticketId}/messages`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          content: newMessage
-        })
+      await eventApi.post(`/api/tickets/${ticketId}/messages`, {
+        content: newMessage
       });
-
-      if (res.ok) {
-        const data = await res.json();
-        setMessages((prev) => [...prev, data.message]);
-        setNewMessage("");
-
-        // Emit via socket
-        if (socketRef.current) {
-          socketRef.current.emit("ticket-message", {
-            ticketId,
-            message: data.message
-          });
-        }
-      }
+      setNewMessage("");
     } catch (err) {
       toast.error("Failed to send message");
       console.error(err);

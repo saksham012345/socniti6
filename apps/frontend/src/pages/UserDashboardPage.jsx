@@ -88,15 +88,8 @@ export default function UserDashboardPage() {
       const real = (res.data.events || []).filter(e => new Date(e.startsAt) > new Date());
       if (real.length > 0) setJoinedEvents(real.slice(0, 4));
 
-      // Fetch tickets
-      const token = localStorage.getItem("token");
-      const ticketRes = await fetch("http://localhost:4002/api/tickets", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (ticketRes.ok) {
-        const ticketData = await ticketRes.json();
-        setTickets(ticketData.tickets || []);
-      }
+      const ticketRes = await eventApi.get("/api/tickets");
+      setTickets(ticketRes.data.tickets || []);
     } catch (err) {
       console.error("Error loading data:", err);
     }

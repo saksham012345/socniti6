@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import { useAuth } from "../context/AuthContext";
+import { BACKEND_URL } from "../lib/api";
 import toast from "react-hot-toast";
 import { Send, Users, Loader2, MessageCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -30,8 +31,9 @@ export default function EventChat({ eventId }) {
   useEffect(() => {
     if (!token || !eventId) return;
 
-    const newSocket = io("http://localhost:4003", {
-      auth: { token }
+    const newSocket = io(BACKEND_URL.replace(/\/$/, ""), {
+      auth: { token },
+      transports: ["websocket", "polling"]
     });
 
     newSocket.on("connect", () => {

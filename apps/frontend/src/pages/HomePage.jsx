@@ -2,6 +2,7 @@ import { ArrowRight, MapPinned, ShieldCheck, Sparkles, HelpCircle } from "lucide
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { eventApi } from "../lib/api";
 import toast from "react-hot-toast";
 
 const highlights = [
@@ -40,30 +41,18 @@ export default function HomePage() {
 
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
-      const res = await fetch("http://localhost:4002/api/tickets", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          subject: ticketForm.subject,
-          description: ticketForm.description,
-          priority: ticketForm.priority
-        })
+      await eventApi.post("/api/tickets", {
+        subject: ticketForm.subject,
+        description: ticketForm.description,
+        priority: ticketForm.priority
       });
 
-      if (res.ok) {
-        toast.success("Ticket created! Our team will assist you soon.");
-        setShowTicketModal(false);
-        setTicketForm({ subject: "", description: "", priority: "medium" });
-        navigate("/dashboard");
-      } else {
-        toast.error("Failed to create ticket");
-      }
+      toast.success("Ticket created! Our team will assist you soon.");
+      setShowTicketModal(false);
+      setTicketForm({ subject: "", description: "", priority: "medium" });
+      navigate("/support");
     } catch (err) {
-      toast.error("Error creating ticket");
+      toast.error(err.response?.data?.message || "Error creating ticket");
       console.error(err);
     } finally {
       setLoading(false);

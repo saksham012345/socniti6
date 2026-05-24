@@ -1,8 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { Mail, Phone, MapPin, Send, MessageCircle, Clock, CheckCircle, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
-import { io } from "socket.io-client";
 
 export default function ContactPage() {
   const { user } = useAuth();
@@ -13,35 +12,6 @@ export default function ContactPage() {
     message: ""
   });
   const [loading, setLoading] = useState(false);
-  const [socket, setSocket] = useState(null);
-  const [connectionStatus, setConnectionStatus] = useState("disconnected");
-
-  useEffect(() => {
-    // Initialize WebSocket connection for real-time contact support
-    const newSocket = io("http://localhost:4003", {
-      transports: ["websocket"],
-      reconnection: true
-    });
-
-    newSocket.on("connect", () => {
-      setConnectionStatus("connected");
-      console.log("Connected to support chat");
-    });
-
-    newSocket.on("disconnect", () => {
-      setConnectionStatus("disconnected");
-    });
-
-    newSocket.on("support-response", (data) => {
-      toast.success(`Support: ${data.message}`);
-    });
-
-    setSocket(newSocket);
-
-    return () => {
-      newSocket.close();
-    };
-  }, []);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -58,15 +28,6 @@ export default function ContactPage() {
     setLoading(true);
 
     try {
-      // Simulate sending message via WebSocket
-      if (socket && connectionStatus === "connected") {
-        socket.emit("contact-message", {
-          ...formData,
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       toast.success("Message sent successfully! We'll get back to you soon.");
@@ -139,11 +100,11 @@ export default function ContactPage() {
           {/* Live Support Status */}
           <div className="rounded-[2rem] bg-white p-6 shadow-soft">
             <div className="flex items-center gap-3">
-              <div className={`h-3 w-3 rounded-full ${connectionStatus === "connected" ? "bg-leaf animate-pulse" : "bg-ink/20"}`} />
+              <div className="h-3 w-3 rounded-full bg-leaf" />
               <div>
                 <h3 className="font-semibold text-ink">Live Support</h3>
                 <p className="text-xs text-ink/60">
-                  {connectionStatus === "connected" ? "Connected - Real-time messaging enabled" : "Offline - We'll respond via email"}
+                  Use Support Tickets for real-time help after signing in
                 </p>
               </div>
             </div>
@@ -266,12 +227,10 @@ export default function ContactPage() {
             </button>
 
             {/* Success Message */}
-            {connectionStatus === "connected" && (
-              <div className="flex items-center gap-2 text-sm text-leaf">
-                <CheckCircle size={16} />
-                <span>Real-time messaging enabled - You'll get instant responses!</span>
-              </div>
-            )}
+            <div className="flex items-center gap-2 text-sm text-leaf">
+              <CheckCircle size={16} />
+              <span>For live support, open Support Tickets from your account sidebar.</span>
+            </div>
           </form>
         </div>
       </div>
