@@ -1,4 +1,5 @@
 const Event = require("../models/Event");
+const EventVerification = require("../models/EventVerification");
 
 const EVENT_CATEGORIES = ["Education","Health","Environment","Food Drive","Fundraiser","Animal Welfare","Community Cleanup","Skill Building","Healthcare"];
 const toSlug = (v = "") => v.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "");
@@ -28,10 +29,19 @@ exports.listEvents = async (req, res) => {
   try {
     const { search, category, city, status, date, lat, lng, maxDistanceKm, organizerId, includePast } = req.query;
     const cond = {};
-    if (search) cond.$or = [{ title: { $regex: search } }, { description: { $regex: search } }];
+    if (search) {
+      cond.$or = [
+        { title: { $regex: search } },
+        { description: { $regex: search } },
+        { city: { $regex: search } },
+        { locationName: { $regex: search } },
+        { state: { $regex: search } }
+      ];
+    }
     if (category) cond.category = category;
     if (city) cond.city = city;
     if (status) cond.status = status;
+    if (!status) cond.status = "upcoming";
     if (organizerId) cond.organizerId = organizerId;
     if (!includePast && !date) cond.startsAt = { $gte: new Date() };
     if (date) { const s = new Date(date), e = new Date(date); e.setDate(e.getDate()+1); cond.startsAt = { $gte: s, $lt: e }; }
@@ -64,8 +74,10 @@ exports.createEvent = async (req, res) => {
       coordinates: req.body.coordinates||{ lat:0, lng:0 },
       startsAt: req.body.startsAt, endsAt: req.body.endsAt||null,
       maxParticipants: req.body.maxParticipants||50,
-      status: req.body.status||"upcoming", donationNeeds: req.body.donationNeeds||[]
+      status: req.user.role === "admin" ? (req.body.status || "upcoming") : "pending",
+      donationNeeds: req.body.donationNeeds||[]
     });
+    if (event.status === "pending") await EventVerification.create({ eventId: event.id });
     res.status(201).json({ message: "Event created", event: await serializeEvent(event) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 };

@@ -15,7 +15,9 @@ const typeDefs = require("./graphql/typeDefs");
 const resolvers = require("./graphql/resolvers");
 const eventRoutes = require("./routes/eventRoutes");
 const donationRoutes = require("./routes/donationRoutes");
+const ticketRoutes = require("./routes/ticketRoutes");
 const Message = require("./models/Message");
+const TicketMessage = require("./models/TicketMessage");
 
 const JWT_SECRET = process.env.JWT_SECRET || "development-secret";
 const PORT = process.env.PORT || 8080;
@@ -90,6 +92,7 @@ async function start() {
       const decoded = jwt.verify(token, JWT_SECRET);
       socket.userId = decoded.sub || decoded.id;
       socket.username = decoded.username;
+      socket.userRole = ["admin", "agent"].includes(decoded.role) ? decoded.role : "user";
       next();
     } catch { next(new Error("Invalid token")); }
   });
@@ -97,6 +100,7 @@ async function start() {
   io.on("connection", (socket) => {
     console.log(`✅ Socket connected: ${socket.username}`);
     activeUsers.set(socket.userId, { socketId: socket.id, username: socket.username, userId: socket.userId });
+    if (["admin", "agent"].includes(socket.userRole)) socket.join("ticket-agents");
 
     socket.on("join-event", async (eventId) => {
       socket.join(`event-${eventId}`);
@@ -122,8 +126,36 @@ async function start() {
 
     socket.on("typing", ({ eventId }) => socket.to(`event-${eventId}`).emit("user-typing", { userId: socket.userId, username: socket.username }));
     socket.on("stop-typing", ({ eventId }) => socket.to(`event-${eventId}`).emit("user-stop-typing", { userId: socket.userId }));
+    socket.on("join-ticket", async (ticketId) => {
+      socket.join(`ticket-${ticketId}`);
+      try {
+        const messages = await TicketMessage.findByTicketId(ticketId);
+        socket.emit("ticket-message-history", messages);
+      } catch {
+        socket.emit("error", { message: "Failed to load ticket messages" });
+      }
+    });
+    socket.on("ticket-message", ({ ticketId, message }) => {
+      if (ticketId && message) socket.to(`ticket-${ticketId}`).emit("ticket-message", message);
+    });
+    socket.on("send-ticket-message", async ({ ticketId, content }) => {
+      if (!ticketId || !content?.trim()) return socket.emit("error", { message: "Message is required" });
+      try {
+        const message = await TicketMessage.create({
+          ticketId,
+          senderId: socket.userId,
+          senderName: socket.username,
+          senderRole: socket.userRole,
+          content: content.trim()
+        });
+        io.to(`ticket-${ticketId}`).emit("ticket-message", message);
+      } catch {
+        socket.emit("error", { message: "Failed to send ticket message" });
+      }
+    });
     socket.on("disconnect", () => { activeUsers.delete(socket.userId); console.log(`❌ Socket disconnected: ${socket.username}`); });
   });
+  app.set("io", io);
 
   // ── Apollo GraphQL ──────────────────────────────────────────────
   const apollo = new ApolloServer({
@@ -151,6 +183,7 @@ async function start() {
   // ── REST Routes ─────────────────────────────────────────────────
   app.use("/api/events", eventRoutes);
   app.use("/api/donations", donationRoutes);
+  app.use("/api/tickets", ticketRoutes);
 
   app.get("/health", (_, res) => res.json({ status: "ok", service: "socniti-backend", port: PORT, activeUsers: activeUsers.size }));
 

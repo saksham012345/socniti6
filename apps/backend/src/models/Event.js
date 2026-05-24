@@ -56,7 +56,7 @@ function _format(row) {
 }
 
 function _col(key) {
-  const map = { title:"title", slug:"slug", description:"description", category:"category", city:"city", state:"state", status:"status", organizerId:"organizer_id" };
+  const map = { title:"title", slug:"slug", description:"description", category:"category", city:"city", state:"state", locationName:"location_name", status:"status", organizerId:"organizer_id" };
   return map[key] || key;
 }
 

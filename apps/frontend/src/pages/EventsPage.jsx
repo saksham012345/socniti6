@@ -142,6 +142,7 @@ export default function EventsPage() {
   const navigate = useNavigate();
   const [events, setEvents] = useState(SAMPLE_EVENTS);
   const [search, setSearch] = useState("");
+  const [placeSearch, setPlaceSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [joinTarget, setJoinTarget] = useState(null);
@@ -156,7 +157,8 @@ export default function EventsPage() {
   const loadEvents = useCallback(async (silent = false) => {
     try {
       const params = { status: "upcoming" };
-      if (search) params.search = search;
+      const combinedSearch = [search, placeSearch].filter(Boolean).join(" ");
+      if (combinedSearch) params.search = combinedSearch;
       if (categoryFilter) params.category = categoryFilter;
       const res = await eventApi.get("/api/events", { params });
       const real = res.data.events || [];
@@ -169,7 +171,7 @@ export default function EventsPage() {
     } catch {
       if (!silent) toast.error("Could not load events");
     }
-  }, [search, categoryFilter]);
+  }, [search, placeSearch, categoryFilter]);
 
   // Initial load + real-time polling every 30 seconds
   useEffect(() => {
@@ -182,10 +184,20 @@ export default function EventsPage() {
   const filtered = events.filter(e => {
     const isFuture = new Date(e.startsAt) > new Date();
     if (e.isSample && !isFuture) return false;
-    if (!search && !categoryFilter) return true;
-    const matchSearch = !search || e.title.toLowerCase().includes(search.toLowerCase()) || e.city?.toLowerCase().includes(search.toLowerCase());
+    if (!search && !placeSearch && !categoryFilter) return true;
+    const searchable = [
+      e.title,
+      e.description,
+      e.locationName,
+      e.city,
+      e.state,
+      e.category
+    ].filter(Boolean).join(" ").toLowerCase();
+    const placeText = [e.locationName, e.city, e.state].filter(Boolean).join(" ").toLowerCase();
+    const matchSearch = !search || searchable.includes(search.toLowerCase());
+    const matchPlace = !placeSearch || placeText.includes(placeSearch.toLowerCase());
     const matchCat = !categoryFilter || e.category === categoryFilter;
-    return matchSearch && matchCat;
+    return matchSearch && matchPlace && matchCat;
   });
 
   const categories = ["Healthcare", "Environment", "Animal Welfare", "Education", "Community Service", "Disaster Relief"];
@@ -222,7 +234,10 @@ export default function EventsPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search events or city..."
+            placeholder="Search events..."
+            className="rounded-2xl border border-ink/15 px-4 py-2.5 text-sm focus:ring-2 focus:ring-leaf focus:border-transparent w-48 sm:w-56" />
+          <input value={placeSearch} onChange={e => setPlaceSearch(e.target.value)}
+            placeholder="Search city or place..."
             className="rounded-2xl border border-ink/15 px-4 py-2.5 text-sm focus:ring-2 focus:ring-leaf focus:border-transparent w-48 sm:w-56" />
           <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
             className="rounded-2xl border border-ink/15 px-4 py-2.5 text-sm focus:ring-2 focus:ring-leaf focus:border-transparent">

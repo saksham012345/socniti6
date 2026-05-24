@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8080";
+export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8080";
 
 // Main API instance — GraphQL + REST all on one backend
 const api = axios.create({

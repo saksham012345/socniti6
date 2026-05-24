@@ -35,8 +35,8 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!formData.title || !formData.locationName || !formData.startsAt) {
-      toast.error("Please fill in all required fields");
+    if (!formData.title || !formData.locationName || !formData.city || !formData.startsAt) {
+      toast.error("Please fill in title, location, city, and start time");
       return;
     }
 
@@ -155,7 +155,7 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess }) {
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-ink mb-2">City</label>
+              <label className="block text-sm font-semibold text-ink mb-2">City *</label>
               <input
                 type="text"
                 name="city"
@@ -163,6 +163,7 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess }) {
                 onChange={handleChange}
                 className="w-full rounded-2xl border border-ink/15 px-4 py-3 focus:ring-2 focus:ring-leaf focus:border-transparent"
                 placeholder="Mumbai"
+                required
               />
             </div>
           </div>

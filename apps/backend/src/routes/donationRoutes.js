@@ -1,6 +1,7 @@
 const express = require("express");
-const { requireAuth } = require("../middleware/auth");
+const { requireAuth, requireRole } = require("../middleware/auth");
 const Donation = require("../models/Donation");
+const DonationSettlement = require("../models/DonationSettlement");
 const router = express.Router();
 
 router.get("/event/:eventId", async (req, res) => {
@@ -29,8 +30,52 @@ router.post("/", requireAuth, async (req, res) => {
       quantity: type === "item" ? quantity : null,
       type, status: "completed", message,
     });
+    if (type === "monetary") {
+      await DonationSettlement.addDonation(eventId, Number(amount));
+    }
     res.status(201).json({ donation });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get("/settlements", requireAuth, requireRole("admin"), async (req, res) => {
+  try {
+    const [settlements, donations] = await Promise.all([
+      DonationSettlement.find({}),
+      Donation.find({})
+    ]);
+    res.json({ settlements, donations });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/settlement/:eventId", requireAuth, requireRole("admin"), async (req, res) => {
+  try {
+    const settledAmount = Number(req.body.settledAmount);
+    if (!Number.isFinite(settledAmount) || settledAmount < 0) {
+      return res.status(400).json({ message: "Valid settledAmount is required" });
+    }
+
+    let settlement = await DonationSettlement.findByEventId(req.params.eventId);
+    if (!settlement) {
+      const donations = await Donation.find({ eventId: req.params.eventId, type: "monetary", status: "completed" });
+      const totalAmount = donations.reduce((sum, donation) => sum + donation.amount, 0);
+      settlement = await DonationSettlement.create({
+        eventId: req.params.eventId,
+        totalAmount,
+        settledAmount: 0
+      });
+    }
+
+    const updated = await DonationSettlement.updateSettlement(
+      req.params.eventId,
+      Math.min(settledAmount, settlement.totalAmount),
+      req.body.notes || null
+    );
+    res.json({ settlement: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

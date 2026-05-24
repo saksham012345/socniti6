@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const User = require("../models/User");
 const Event = require("../models/Event");
+const EventVerification = require("../models/EventVerification");
 const Donation = require("../models/Donation");
 const Message = require("../models/Message");
 
@@ -60,10 +61,19 @@ const resolvers = {
     events: async (_, args) => {
       const { search, category, city, status, date, lat, lng, maxDistanceKm, organizerId } = args;
       const cond = {};
-      if (search) cond.$or = [{ title: { $regex: search } }, { description: { $regex: search } }];
+      if (search) {
+        cond.$or = [
+          { title: { $regex: search } },
+          { description: { $regex: search } },
+          { city: { $regex: search } },
+          { locationName: { $regex: search } },
+          { state: { $regex: search } }
+        ];
+      }
       if (category) cond.category = category;
       if (city) cond.city = city;
       if (status) cond.status = status;
+      if (!status) cond.status = "upcoming";
       if (organizerId) cond.organizerId = organizerId;
       if (!date) cond.startsAt = { $gte: new Date() };
       if (date) { const s = new Date(date), e = new Date(date); e.setDate(e.getDate()+1); cond.startsAt = { $gte: s, $lt: e }; }
@@ -190,7 +200,8 @@ const resolvers = {
     createEvent: async (_, { input }, ctx) => {
       if (!ctx.user) throw new Error("Authentication required");
       const slug = `${toSlug(input.title)}-${Date.now().toString().slice(-6)}`;
-      const event = await Event.create({ ...input, slug, organizerId: ctx.user.sub||ctx.user.id, startsAt: new Date(input.startsAt), endsAt: input.endsAt ? new Date(input.endsAt) : null, status: "upcoming" });
+      const event = await Event.create({ ...input, slug, organizerId: ctx.user.sub||ctx.user.id, startsAt: new Date(input.startsAt), endsAt: input.endsAt ? new Date(input.endsAt) : null, status: ctx.user.role === "admin" ? "upcoming" : "pending" });
+      if (event.status === "pending") await EventVerification.create({ eventId: event.id });
       return { success: true, message: "Event created", event: await serializeEvent(event) };
     },
 

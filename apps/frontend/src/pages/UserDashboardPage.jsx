@@ -4,9 +4,10 @@ import { useNavigate } from "react-router-dom";
 import { eventApi } from "../lib/api";
 import {
   Calendar, Heart, Users, MapPin, ChevronRight,
-  Clock, CheckCircle, AlertCircle, Loader2, Plus, Star
+  Clock, CheckCircle, AlertCircle, Loader2, Plus, Star, Ticket
 } from "lucide-react";
 import DonationModal from "../components/DonationModal";
+import toast from "react-hot-toast";
 
 const SAMPLE_JOINED = [
   { id: "s1", title: "Eye Donation Awareness Camp", city: "Mumbai", category: "Healthcare", startsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(), currentParticipants: 46, maxParticipants: 100, slug: "eye-donation-awareness-camp-mumbai", status: "upcoming" },
@@ -73,6 +74,7 @@ export default function UserDashboardPage() {
   const navigate = useNavigate();
   const [joinedEvents, setJoinedEvents] = useState(SAMPLE_JOINED);
   const [donations, setDonations] = useState(SAMPLE_DONATIONS);
+  const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(false);
   const [donateTarget, setDonateTarget] = useState(null);
   const [activeTab, setActiveTab] = useState("upcoming");
@@ -85,7 +87,19 @@ export default function UserDashboardPage() {
       const res = await eventApi.get("/api/events");
       const real = (res.data.events || []).filter(e => new Date(e.startsAt) > new Date());
       if (real.length > 0) setJoinedEvents(real.slice(0, 4));
-    } catch { /* keep sample */ }
+
+      // Fetch tickets
+      const token = localStorage.getItem("token");
+      const ticketRes = await fetch("http://localhost:4002/api/tickets", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (ticketRes.ok) {
+        const ticketData = await ticketRes.json();
+        setTickets(ticketData.tickets || []);
+      }
+    } catch (err) {
+      console.error("Error loading data:", err);
+    }
     setLoading(false);
   };
 
@@ -186,6 +200,59 @@ export default function UserDashboardPage() {
                 </span>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Quick Actions */}
+      <div className="rounded-[2rem] bg-white p-6 shadow-soft">
+        <h2 className="font-display text-xl font-bold text-ink mb-4">Support Tickets</h2>
+        {tickets.length === 0 ? (
+          <div className="py-8 text-center">
+            <p className="text-sm text-ink/50 mb-4">You don't have any support tickets yet.</p>
+            <button onClick={() => navigate("/")}
+              className="inline-flex items-center gap-2 rounded-full bg-leaf px-4 py-2 text-sm font-semibold text-white hover:bg-leaf/90">
+              <Ticket size={16} /> Raise a Ticket
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {tickets.map(ticket => {
+              const statusColors = {
+                open: "bg-blue-100 text-blue-800",
+                "in-progress": "bg-yellow-100 text-yellow-800",
+                waiting: "bg-gray-100 text-gray-800",
+                resolved: "bg-green-100 text-green-800",
+                closed: "bg-gray-100 text-gray-800"
+              };
+              const priorityColors = {
+                low: "text-blue-600",
+                medium: "text-yellow-600",
+                high: "text-orange-600",
+                urgent: "text-red-600"
+              };
+              return (
+                <div key={ticket.id} onClick={() => navigate(`/tickets/${ticket.id}`)}
+                  className="flex items-center justify-between gap-3 rounded-2xl border border-ink/10 p-3 hover:bg-gray-50 cursor-pointer transition">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ink/10">
+                      <Ticket size={18} className="text-ink" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-ink truncate">{ticket.subject}</p>
+                      <p className="text-xs text-ink/50 mt-0.5">
+                        {ticket.id.slice(0, 8)} · Priority: <span className={`font-semibold ${priorityColors[ticket.priority]}`}>
+                          {ticket.priority.toUpperCase()}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusColors[ticket.status]}`}>
+                    {ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1)}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

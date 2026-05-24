@@ -125,6 +125,71 @@ async function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_donations_donor_id ON donations(donor_id);
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tickets (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id TEXT NOT NULL,
+      user_name TEXT NOT NULL,
+      user_email TEXT,
+      subject TEXT NOT NULL,
+      description TEXT,
+      priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low','medium','high','urgent')),
+      status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','in-progress','waiting','resolved','closed')),
+      assigned_to TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_tickets_user_id ON tickets(user_id);
+    CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
+    CREATE INDEX IF NOT EXISTS idx_tickets_assigned_to ON tickets(assigned_to);
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ticket_messages (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      ticket_id UUID NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+      sender_id TEXT NOT NULL,
+      sender_name TEXT NOT NULL,
+      sender_role TEXT DEFAULT 'user' CHECK (sender_role IN ('user','agent','admin')),
+      content TEXT NOT NULL,
+      attachment_url TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket_id ON ticket_messages(ticket_id, created_at DESC);
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS event_verification (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+      verified_by TEXT,
+      verification_notes TEXT,
+      rejection_reason TEXT,
+      verified_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(event_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_event_verification_status ON event_verification(status);
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS donation_settlements (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      event_id TEXT NOT NULL,
+      total_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+      settled_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+      pending_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+      settlement_status TEXT NOT NULL DEFAULT 'pending' CHECK (settlement_status IN ('pending','partial','settled')),
+      last_settlement_date TIMESTAMPTZ,
+      notes TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_settlements_event_id ON donation_settlements(event_id);
+    CREATE INDEX IF NOT EXISTS idx_settlements_status ON donation_settlements(settlement_status);
+  `);
+
   console.log("✅ Migrations complete");
 }
 

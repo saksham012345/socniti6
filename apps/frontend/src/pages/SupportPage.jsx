@@ -1,189 +1,294 @@
-import { useState, useEffect, useRef } from "react";
-import { MessageSquare, Plus, Send } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertCircle, Loader2, MessageSquare, Plus, Send, X } from "lucide-react";
 import { io } from "socket.io-client";
+import toast from "react-hot-toast";
 import { useAuth } from "../context/AuthContext";
+import { BACKEND_URL, eventApi } from "../lib/api";
+
+const socketUrl = BACKEND_URL.replace(/\/$/, "");
+
+const statusColors = {
+  open: "bg-blue-100 text-blue-800",
+  "in-progress": "bg-yellow-100 text-yellow-800",
+  waiting: "bg-gray-100 text-gray-800",
+  resolved: "bg-green-100 text-green-800",
+  closed: "bg-gray-100 text-gray-800"
+};
 
 export default function SupportPage() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [tickets, setTickets] = useState([]);
   const [activeTicket, setActiveTicket] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [showNewTicket, setShowNewTicket] = useState(false);
-  const [subject, setSubject] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [ticketForm, setTicketForm] = useState({
+    subject: "",
+    description: "",
+    priority: "medium"
+  });
   const socketRef = useRef(null);
+  const messagesEndRef = useRef(null);
+
+  const activeTicketId = activeTicket?.id;
 
   useEffect(() => {
     fetchTickets();
   }, []);
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  useEffect(() => {
+    if (!token || !activeTicketId) return undefined;
+
+    if (socketRef.current) socketRef.current.disconnect();
+    const socket = io(socketUrl, {
+      auth: { token },
+      transports: ["websocket", "polling"]
+    });
+
+    socket.on("connect", () => socket.emit("join-ticket", activeTicketId));
+    socket.on("ticket-message-history", (history) => setMessages(dedupeMessages(history)));
+    socket.on("ticket-message", (message) => {
+      setMessages(current => dedupeMessages([...current, message]));
+    });
+    socket.on("ticket-updated", (ticket) => {
+      setTickets(current => current.map(item => item.id === ticket.id ? ticket : item));
+      setActiveTicket(current => current?.id === ticket.id ? ticket : current);
+    });
+    socket.on("connect_error", () => toast.error("Live support connection failed"));
+
+    socketRef.current = socket;
+    return () => socket.disconnect();
+  }, [activeTicketId, token]);
+
+  const dedupeMessages = (items) => {
+    const seen = new Set();
+    return items.filter(item => {
+      const key = item.id || `${item.senderId}-${item.createdAt}-${item.content}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
+  const sortedTickets = useMemo(() => {
+    return [...tickets].sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+  }, [tickets]);
+
   const fetchTickets = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch("http://localhost:4003/api/chat/tickets", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        setTickets(await res.json());
-      }
+      setLoading(true);
+      const res = await eventApi.get("/api/tickets");
+      setTickets(res.data.tickets || []);
     } catch (err) {
-      console.error(err);
+      toast.error(err.response?.data?.message || "Failed to load tickets");
+    } finally {
+      setLoading(false);
     }
   };
 
   const createTicket = async (e) => {
     e.preventDefault();
+    if (!ticketForm.subject.trim()) {
+      toast.error("Please add a subject");
+      return;
+    }
+
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch("http://localhost:4003/api/chat/tickets", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ subject })
-      });
-      if (res.ok) {
-        const ticket = await res.json();
-        setTickets([ticket, ...tickets]);
-        setShowNewTicket(false);
-        setSubject("");
-        openTicket(ticket);
-      }
+      setCreating(true);
+      const res = await eventApi.post("/api/tickets", ticketForm);
+      const ticket = res.data.ticket;
+      setTickets(current => [ticket, ...current]);
+      setShowNewTicket(false);
+      setTicketForm({ subject: "", description: "", priority: "medium" });
+      await openTicket(ticket);
+      toast.success("Ticket created");
     } catch (err) {
-      console.error(err);
+      toast.error(err.response?.data?.message || "Failed to create ticket");
+    } finally {
+      setCreating(false);
     }
   };
 
-  const openTicket = (ticket) => {
+  const openTicket = async (ticket) => {
     setActiveTicket(ticket);
     setMessages([]);
-    const token = localStorage.getItem("token");
-
-    if (socketRef.current) socketRef.current.disconnect();
-
-    const newSocket = io("http://localhost:4003", {
-      auth: { token }
-    });
-
-    newSocket.on("connect", () => {
-      newSocket.emit("join-ticket", ticket.id);
-    });
-
-    newSocket.on("ticket-message-history", (history) => {
-      setMessages(history);
-    });
-
-    newSocket.on("new-ticket-message", (msg) => {
-      setMessages((prev) => [...prev, msg]);
-    });
-
-    socketRef.current = newSocket;
+    try {
+      const res = await eventApi.get(`/api/tickets/${ticket.id}/messages`);
+      setMessages(dedupeMessages(res.data.messages || []));
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to load messages");
+    }
   };
 
-  const sendMessage = (e) => {
+  const sendMessage = async (e) => {
     e.preventDefault();
-    if (!newMessage.trim() || !activeTicket || !socketRef.current) return;
-    
-    socketRef.current.emit("send-ticket-message", {
-      ticketId: activeTicket.id,
-      content: newMessage
-    });
-    setNewMessage("");
+    if (!newMessage.trim() || !activeTicket) return;
+
+    try {
+      setSending(true);
+      await eventApi.post(`/api/tickets/${activeTicket.id}/messages`, {
+        content: newMessage
+      });
+      setNewMessage("");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to send message");
+    } finally {
+      setSending(false);
+    }
   };
+
+  const canReply = activeTicket && !["resolved", "closed"].includes(activeTicket.status);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 py-8 flex h-[calc(100vh-80px)] gap-6">
-      {/* Sidebar - Tickets List */}
-      <div className="w-1/3 flex flex-col bg-white rounded-2xl border border-ink/10 overflow-hidden">
-        <div className="p-4 border-b border-ink/10 flex justify-between items-center bg-mist/50">
-          <h2 className="font-bold text-lg">My Tickets</h2>
-          <button onClick={() => setShowNewTicket(true)} className="p-2 bg-ink text-white rounded-full hover:bg-ink/90">
+    <div className="mx-auto flex h-[calc(100vh-80px)] max-w-7xl gap-6 px-4 py-8 sm:px-6">
+      <div className={`${showNewTicket || activeTicket ? "hidden md:flex" : "flex"} w-full flex-col overflow-hidden rounded-xl border border-ink/10 bg-white md:w-1/3`}>
+        <div className="flex items-center justify-between border-b border-ink/10 bg-mist/50 p-4">
+          <div>
+            <h2 className="font-bold text-ink">My Tickets</h2>
+            <p className="text-xs text-ink/50">Raise an issue and chat with support live.</p>
+          </div>
+          <button
+            onClick={() => setShowNewTicket(true)}
+            className="flex h-10 w-10 items-center justify-center rounded-lg bg-ink text-white hover:bg-ink/90"
+            title="Create ticket"
+          >
             <Plus size={18} />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {tickets.map(t => (
-            <div key={t.id} onClick={() => openTicket(t)}
-              className={`p-4 rounded-xl cursor-pointer border transition-colors ${
-                activeTicket?.id === t.id ? "border-ink bg-mist" : "border-ink/10 hover:border-ink/30"
-              }`}>
-              <div className="flex justify-between items-start mb-2">
-                <h3 className="font-bold truncate pr-4">{t.subject}</h3>
-                <span className={`text-xs px-2 py-1 rounded-full ${t.status === 'open' ? 'bg-leaf/20 text-leaf' : 'bg-ink/10 text-ink/60'}`}>
-                  {t.status}
-                </span>
-              </div>
-              <p className="text-xs text-ink/50">Created: {new Date(t.createdAt).toLocaleDateString()}</p>
+
+        <div className="flex-1 space-y-3 overflow-y-auto p-4">
+          {loading ? (
+            <div className="flex justify-center py-8"><Loader2 className="animate-spin text-leaf" size={24} /></div>
+          ) : sortedTickets.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-ink/15 p-6 text-center">
+              <AlertCircle className="mx-auto mb-3 text-ink/30" size={28} />
+              <p className="text-sm font-semibold text-ink">No tickets yet</p>
+              <button onClick={() => setShowNewTicket(true)} className="mt-3 rounded-lg bg-leaf px-4 py-2 text-sm font-semibold text-white">
+                Raise Ticket
+              </button>
             </div>
-          ))}
-          {tickets.length === 0 && <p className="text-ink/50 text-sm text-center py-4">No tickets yet.</p>}
+          ) : (
+            sortedTickets.map(ticket => (
+              <button
+                key={ticket.id}
+                onClick={() => openTicket(ticket)}
+                className={`w-full rounded-lg border p-4 text-left transition ${
+                  activeTicket?.id === ticket.id ? "border-leaf bg-leaf/5" : "border-ink/10 hover:bg-mist"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <p className="truncate text-sm font-bold text-ink">{ticket.subject}</p>
+                  <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${statusColors[ticket.status]}`}>
+                    {ticket.status}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs text-ink/50">
+                  {ticket.priority} priority · {new Date(ticket.createdAt).toLocaleDateString("en-IN")}
+                </p>
+              </button>
+            ))
+          )}
         </div>
       </div>
 
-      {/* Main Content - Chat Area */}
-      <div className="w-2/3 flex flex-col bg-white rounded-2xl border border-ink/10 overflow-hidden relative">
+      <div className={`${showNewTicket || activeTicket ? "flex" : "hidden md:flex"} w-full flex-1 flex-col overflow-hidden rounded-xl border border-ink/10 bg-white`}>
         {showNewTicket ? (
-          <div className="p-8 flex flex-col items-center justify-center h-full">
-            <h2 className="text-2xl font-bold mb-6">Create New Ticket</h2>
-            <form onSubmit={createTicket} className="w-full max-w-md">
-              <input
-                type="text"
-                placeholder="What do you need help with?"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                required
-                className="w-full p-4 rounded-xl border border-ink/20 mb-4 focus:outline-none focus:border-ink"
-              />
-              <div className="flex gap-4">
-                <button type="submit" className="flex-1 bg-ink text-white p-3 rounded-xl font-bold hover:bg-ink/90">Submit</button>
-                <button type="button" onClick={() => setShowNewTicket(false)} className="flex-1 border border-ink/20 p-3 rounded-xl font-bold hover:bg-mist">Cancel</button>
+          <div className="flex h-full items-center justify-center p-8">
+            <form onSubmit={createTicket} className="w-full max-w-lg rounded-xl border border-ink/10 p-6">
+              <div className="mb-5 flex items-center justify-between">
+                <h2 className="text-xl font-bold text-ink">Raise a Support Ticket</h2>
+                <button type="button" onClick={() => setShowNewTicket(false)} className="rounded-lg p-2 hover:bg-mist">
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <input
+                  type="text"
+                  value={ticketForm.subject}
+                  onChange={(e) => setTicketForm(form => ({ ...form, subject: e.target.value }))}
+                  placeholder="Short subject"
+                  className="w-full rounded-lg border border-ink/15 px-4 py-3 outline-none focus:border-leaf"
+                />
+                <textarea
+                  value={ticketForm.description}
+                  onChange={(e) => setTicketForm(form => ({ ...form, description: e.target.value }))}
+                  rows={5}
+                  placeholder="Describe what happened"
+                  className="w-full rounded-lg border border-ink/15 px-4 py-3 outline-none focus:border-leaf"
+                />
+                <select
+                  value={ticketForm.priority}
+                  onChange={(e) => setTicketForm(form => ({ ...form, priority: e.target.value }))}
+                  className="w-full rounded-lg border border-ink/15 px-4 py-3 outline-none focus:border-leaf"
+                >
+                  <option value="low">Low priority</option>
+                  <option value="medium">Medium priority</option>
+                  <option value="high">High priority</option>
+                  <option value="urgent">Urgent priority</option>
+                </select>
+                <button disabled={creating} className="w-full rounded-lg bg-leaf px-4 py-3 font-semibold text-white disabled:opacity-50">
+                  {creating ? "Creating..." : "Submit Ticket"}
+                </button>
               </div>
             </form>
           </div>
         ) : activeTicket ? (
           <>
-            <div className="p-4 border-b border-ink/10 bg-mist/50">
-              <h2 className="font-bold text-lg">{activeTicket.subject}</h2>
-              <p className="text-sm text-ink/60">Ticket #{activeTicket.id.split("-")[0]}</p>
+            <div className="border-b border-ink/10 bg-mist/50 p-4">
+              <button onClick={() => setActiveTicket(null)} className="mb-2 text-xs font-semibold text-leaf md:hidden">Back to tickets</button>
+              <h2 className="font-bold text-ink">{activeTicket.subject}</h2>
+              <p className="text-sm text-ink/60">Ticket #{activeTicket.id.slice(0, 8)} · {activeTicket.status}</p>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {messages.map((m, i) => {
-                const isMe = m.senderId === user.id;
-                return (
-                  <div key={i} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
-                    <span className="text-xs text-ink/50 mb-1 px-2">{m.senderName}</span>
-                    <div className={`px-4 py-2 rounded-2xl max-w-[80%] ${isMe ? "bg-ink text-white rounded-tr-sm" : "bg-mist text-ink rounded-tl-sm"}`}>
-                      {m.content}
+            <div className="flex-1 space-y-4 overflow-y-auto bg-gray-50 p-5">
+              {activeTicket.description && (
+                <div className="rounded-lg border border-ink/10 bg-white p-4 text-sm text-ink/70">{activeTicket.description}</div>
+              )}
+              {messages.length === 0 ? (
+                <p className="py-8 text-center text-sm text-ink/50">No messages yet.</p>
+              ) : (
+                messages.map(message => {
+                  const isMe = message.senderId === user?.id;
+                  return (
+                    <div key={message.id || `${message.senderId}-${message.createdAt}`} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
+                      <span className="mb-1 px-2 text-xs font-semibold text-ink/50">{message.senderName}</span>
+                      <div className={`max-w-[78%] rounded-2xl px-4 py-2 text-sm ${isMe ? "rounded-tr-sm bg-ink text-white" : "rounded-tl-sm bg-white text-ink"}`}>
+                        {message.content}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
+              <div ref={messagesEndRef} />
             </div>
-            {activeTicket.status === 'open' && (
-              <form onSubmit={sendMessage} className="p-4 border-t border-ink/10 bg-white flex gap-2">
+            {canReply ? (
+              <form onSubmit={sendMessage} className="flex gap-2 border-t border-ink/10 bg-white p-4">
                 <input
-                  type="text"
-                  placeholder="Type a message..."
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  className="flex-1 px-4 py-3 bg-mist rounded-xl focus:outline-none"
+                  placeholder="Type a message..."
+                  className="flex-1 rounded-lg bg-mist px-4 py-3 outline-none focus:ring-2 focus:ring-leaf"
                 />
-                <button type="submit" className="px-4 py-3 bg-ink text-white rounded-xl hover:bg-ink/90">
-                  <Send size={20} />
+                <button disabled={sending || !newMessage.trim()} className="rounded-lg bg-ink px-4 py-3 text-white disabled:opacity-50">
+                  <Send size={18} />
                 </button>
               </form>
-            )}
-            {activeTicket.status === 'closed' && (
-              <div className="p-4 border-t border-ink/10 bg-mist/50 text-center text-sm font-semibold text-ink/60">
-                This ticket has been closed.
+            ) : (
+              <div className="border-t border-ink/10 bg-green-50 p-4 text-center text-sm font-semibold text-green-800">
+                This ticket is closed.
               </div>
             )}
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-ink/40">
-            <MessageSquare size={64} className="mb-4 opacity-50" />
-            <p className="font-semibold text-lg">Select a ticket or create a new one</p>
+          <div className="flex flex-1 flex-col items-center justify-center text-ink/40">
+            <MessageSquare size={60} className="mb-4 opacity-30" />
+            <p className="font-semibold">Select a ticket or create a new one</p>
           </div>
         )}
       </div>

@@ -1,35 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { eventApi } from "../lib/api";
 import toast from "react-hot-toast";
-import { MapPin, Calendar, Users, ArrowLeft, UserPlus, Heart, MessageCircle, Loader2, CheckCircle } from "lucide-react";
+import {
+  MapPin, Calendar, Users, ArrowLeft, UserPlus, Heart, MessageCircle,
+  Loader2, CheckCircle, RefreshCw, Clock, Phone, Mail, FileText, X
+} from "lucide-react";
 import DonationModal from "../components/DonationModal";
 import EventChat from "../components/EventChat";
 
-// Same sample data for detail view
 const SAMPLE_EVENTS = {
-  "eye-donation-awareness-camp-mumbai": {
-    id: "sample-1", title: "Eye Donation Awareness Camp",
-    description: "Join us for an eye donation awareness camp. Learn about the importance of eye donation and pledge to donate your eyes. Free eye checkup available for all attendees. Doctors from leading hospitals will be present to answer your questions about eye donation.",
-    category: "Healthcare", locationName: "Lions Club Community Center", city: "Mumbai", state: "Maharashtra",
-    startsAt: "2026-04-15T10:00:00Z", currentParticipants: 45, maxParticipants: 100,
-    slug: "eye-donation-awareness-camp-mumbai", isSample: true,
-    organizer: { fullName: "Dr. Priya Sharma", username: "drpriya" }
-  },
-  "beach-cleanup-drive-juhu": {
-    id: "sample-2", title: "Juhu Beach Cleanup Drive",
-    description: "Help us clean Juhu Beach and make it plastic-free. Bring your friends and family for a morning of community service. Gloves, bags, and refreshments will be provided. Let's make Mumbai's beaches cleaner together!",
-    category: "Environment", locationName: "Juhu Beach", city: "Mumbai", state: "Maharashtra",
-    startsAt: "2026-04-20T07:00:00Z", currentParticipants: 78, maxParticipants: 150,
-    slug: "beach-cleanup-drive-juhu", isSample: true,
-    organizer: { fullName: "Rahul Mehta", username: "rahulmehta" }
-  },
+  "eye-donation-awareness-camp-mumbai": { id: "sample-1", title: "Eye Donation Awareness Camp", description: "Join us for an eye donation awareness camp. Learn about the importance of eye donation and pledge to donate your eyes. Free eye checkup available for all attendees. Doctors from leading hospitals will be present to answer your questions about eye donation.", category: "Healthcare", locationName: "Lions Club Community Center", city: "Mumbai", state: "Maharashtra", startsAt: (() => { const d = new Date(); d.setDate(d.getDate() + 3); return d.toISOString(); })(), currentParticipants: 45, maxParticipants: 100, slug: "eye-donation-awareness-camp-mumbai", isSample: true, organizer: { fullName: "Dr. Priya Sharma", username: "drpriya" } },
+  "beach-cleanup-drive-juhu": { id: "sample-2", title: "Juhu Beach Cleanup Drive", description: "Help us clean Juhu Beach and make it plastic-free. Bring your friends and family for a morning of community service. Gloves, bags, and refreshments will be provided.", category: "Environment", locationName: "Juhu Beach", city: "Mumbai", state: "Maharashtra", startsAt: (() => { const d = new Date(); d.setDate(d.getDate() + 5); return d.toISOString(); })(), currentParticipants: 78, maxParticipants: 150, slug: "beach-cleanup-drive-juhu", isSample: true, organizer: { fullName: "Rahul Mehta", username: "rahulmehta" } },
   "free-medical-camp-delhi": {
     id: "sample-3", title: "Free Medical Health Camp",
     description: "Free health checkup for underprivileged communities. General screening, blood pressure, diabetes testing, and doctor consultations available. Medicines will be distributed free of cost.",
     category: "Healthcare", locationName: "Government School Ground", city: "Delhi", state: "Delhi",
-    startsAt: "2026-04-18T09:00:00Z", currentParticipants: 120, maxParticipants: 200,
+    startsAt: (() => { const d = new Date(); d.setDate(d.getDate() + 8); return d.toISOString(); })(), currentParticipants: 120, maxParticipants: 200,
     slug: "free-medical-camp-delhi", isSample: true,
     organizer: { fullName: "Dr. Amit Kumar", username: "dramit" }
   },
