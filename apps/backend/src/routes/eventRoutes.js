@@ -34,11 +34,15 @@ router.post("/:slug/approve", requireAuth, requireRole("admin"), async (req, res
     if (!verification) {
       verification = await EventVerification.create({ eventId: event.id });
     }
-    verification = await EventVerification.approve(
-      event.id,
-      req.user.sub || req.user.id,
-      req.body?.notes || "Approved by admin"
-    );
+        verification = await EventVerification.approve(
+          event.id,
+          req.user.sub || req.user.id,
+          req.body?.notes || "Approved by admin"
+        );
+
+        // mark organizer verified for this event
+        event.organizerVerified = true;
+        await event.save();
 
     res.json({ message: "Event approved", event, verification });
   } catch (err) {
@@ -46,6 +50,17 @@ router.post("/:slug/approve", requireAuth, requireRole("admin"), async (req, res
   }
 });
 
+router.post('/:slug/verify-organizer', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const event = await Event.findOne({ slug: req.params.slug });
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+    event.organizerVerified = true;
+    await event.save();
+    res.json({ message: 'Organizer verified for event', event });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 router.post("/:slug/reject", requireAuth, requireRole("admin"), async (req, res) => {
   try {
     const event = await Event.findOne({ slug: req.params.slug });

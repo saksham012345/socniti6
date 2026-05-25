@@ -42,6 +42,8 @@ function _format(row) {
     maxParticipants: row.max_participants, currentParticipants: row.current_participants,
     waitlistCount: row.waitlist_count, status: row.status,
     donationNeeds: typeof row.donation_needs === "string" ? JSON.parse(row.donation_needs) : (row.donation_needs||[]),
+    paymentQr: row.payment_qr || null,
+    organizerVerified: !!row.organizer_verified,
     averageRating: row.average_rating||0, totalReviews: row.total_reviews||0,
     participants: [], waitlist: [],
     createdAt: row.created_at, updatedAt: row.updated_at,
@@ -99,13 +101,13 @@ const Event = {
     const res = await query(
       `INSERT INTO events (title,slug,description,category,image_url,organizer_id,organizer_name,
        location_name,address,city,state,lat,lng,starts_at,ends_at,max_participants,
-       current_participants,waitlist_count,status,donation_needs)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING *`,
+       current_participants,waitlist_count,status,donation_needs,payment_qr,organizer_verified)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22) RETURNING *`,
       [data.title,data.slug,data.description,data.category,data.imageUrl||"",
        data.organizerId,data.organizerName||"",data.locationName,data.address||"",
        data.city||"",data.state||"",data.coordinates?.lat||0,data.coordinates?.lng||0,
        data.startsAt,data.endsAt||null,data.maxParticipants||50,0,0,
-       data.status||"upcoming",JSON.stringify(data.donationNeeds||[])]
+       data.status||"upcoming",JSON.stringify(data.donationNeeds||[]),data.paymentQr||null, data.organizerVerified? true : false]
     );
     return _format(res.rows[0]);
   },
@@ -113,11 +115,11 @@ const Event = {
     await query(
       `UPDATE events SET title=$1,description=$2,category=$3,image_url=$4,location_name=$5,
        address=$6,city=$7,state=$8,lat=$9,lng=$10,starts_at=$11,ends_at=$12,max_participants=$13,
-       current_participants=$14,waitlist_count=$15,status=$16,donation_needs=$17,updated_at=NOW() WHERE id=$18`,
+       current_participants=$14,waitlist_count=$15,status=$16,donation_needs=$17,payment_qr=$18,organizer_verified=$19,updated_at=NOW() WHERE id=$20`,
       [event.title,event.description,event.category,event.imageUrl||"",event.locationName,
        event.address||"",event.city||"",event.state||"",event.coordinates?.lat||0,event.coordinates?.lng||0,
        event.startsAt,event.endsAt||null,event.maxParticipants,event.currentParticipants,
-       event.waitlistCount,event.status,JSON.stringify(event.donationNeeds||[]),event.id]
+       event.waitlistCount,event.status,JSON.stringify(event.donationNeeds||[]),event.paymentQr||null,event.organizerVerified? true : false,event.id]
     );
     await _syncParticipants(event.id, event.participants||[], false);
     await _syncParticipants(event.id, event.waitlist||[], true);

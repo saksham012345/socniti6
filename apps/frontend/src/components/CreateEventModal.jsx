@@ -25,11 +25,28 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess }) {
     lat: "",
     lng: "",
     startsAt: "",
-    maxParticipants: ""
+    maxParticipants: "",
+    paymentQr: "",
+    donationNeeds: []
   });
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const addDonationItem = () => {
+    setFormData({ ...formData, donationNeeds: [...(formData.donationNeeds||[]), { item: "", quantity: 1, fulfilled: 0 }] });
+  };
+
+  const updateDonationItem = (idx, key, value) => {
+    const items = [...(formData.donationNeeds||[])];
+    items[idx] = { ...items[idx], [key]: value };
+    setFormData({ ...formData, donationNeeds: items });
+  };
+
+  const removeDonationItem = (idx) => {
+    const items = [...(formData.donationNeeds||[])]; items.splice(idx,1);
+    setFormData({ ...formData, donationNeeds: items });
   };
 
   const handleSubmit = async (e) => {
@@ -55,7 +72,9 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess }) {
           lng: parseFloat(formData.lng) || 0
         },
         startsAt: new Date(formData.startsAt).toISOString(),
-        maxParticipants: parseInt(formData.maxParticipants) || 50
+        maxParticipants: parseInt(formData.maxParticipants) || 50,
+        paymentQr: formData.paymentQr || null,
+        donationNeeds: formData.donationNeeds || []
       });
 
       toast.success("Event created successfully!");
@@ -221,6 +240,38 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess }) {
                 className="w-full rounded-2xl border border-ink/15 px-4 py-3 focus:ring-2 focus:ring-leaf focus:border-transparent"
                 placeholder="72.8777"
               />
+            </div>
+          </div>
+
+          {/* Payment QR */}
+          <div>
+            <label className="block text-sm font-semibold text-ink mb-2">Payment QR (for donations)</label>
+            <input
+              type="text"
+              name="paymentQr"
+              value={formData.paymentQr}
+              onChange={handleChange}
+              className="w-full rounded-2xl border border-ink/15 px-4 py-3 focus:ring-2 focus:ring-leaf focus:border-transparent"
+              placeholder="Payment link or QR data"
+            />
+            <p className="mt-1 text-xs text-ink/50">Optional: paste a payment link or QR code data for monetary donations.</p>
+          </div>
+
+          {/* Donation items (in-kind) */}
+          <div>
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-semibold text-ink mb-2">Needed items (donations)</label>
+              <button type="button" onClick={addDonationItem} className="text-sm text-leaf font-semibold">Add item</button>
+            </div>
+            <div className="space-y-2">
+              {(formData.donationNeeds||[]).map((it, idx) => (
+                <div key={idx} className="flex gap-2">
+                  <input value={it.item} onChange={(e)=>updateDonationItem(idx,'item',e.target.value)} placeholder="Item" className="flex-1 rounded-lg border border-ink/15 px-3 py-2" />
+                  <input type="number" min="1" value={it.quantity} onChange={(e)=>updateDonationItem(idx,'quantity',parseInt(e.target.value||1))} className="w-24 rounded-lg border border-ink/15 px-3 py-2" />
+                  <button type="button" onClick={()=>removeDonationItem(idx)} className="rounded-lg bg-ember px-3 py-2 text-white">Remove</button>
+                </div>
+              ))}
+              {(formData.donationNeeds||[]).length===0 && <p className="text-sm text-ink/50">No items added. People may still donate money via Payment QR.</p>}
             </div>
           </div>
 

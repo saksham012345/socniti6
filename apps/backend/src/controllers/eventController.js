@@ -16,6 +16,8 @@ const serializeEvent = async (event, vc) => {
     maxParticipants: event.maxParticipants, currentParticipants: event.currentParticipants,
     waitlistCount: event.waitlistCount, status: event.status,
     donationNeeds: event.donationNeeds || [],
+    paymentQr: event.paymentQr || null,
+    organizerVerified: !!event.organizerVerified,
     participants: (event.participants||[]).map(p => ({ userId: p.userId, fullName: p.fullName, email: p.email, phone: p.phone||"", note: p.note||"", joinedAt: toIso(p.joinedAt) })),
     waitlist: (event.waitlist||[]).map(p => ({ userId: p.userId, fullName: p.fullName, email: p.email, joinedAt: toIso(p.joinedAt) })),
     averageRating: event.averageRating||0, totalReviews: event.totalReviews||0,
@@ -75,7 +77,9 @@ exports.createEvent = async (req, res) => {
       startsAt: req.body.startsAt, endsAt: req.body.endsAt||null,
       maxParticipants: req.body.maxParticipants||50,
       status: req.user.role === "admin" ? (req.body.status || "upcoming") : "pending",
-      donationNeeds: req.body.donationNeeds||[]
+      donationNeeds: req.body.donationNeeds||[],
+      paymentQr: req.body.paymentQr || null,
+      organizerVerified: req.user.role === "admin" ? true : false
     });
     if (event.status === "pending") await EventVerification.create({ eventId: event.id });
     res.status(201).json({ message: "Event created", event: await serializeEvent(event) });
@@ -86,7 +90,10 @@ exports.updateEvent = async (req, res) => {
   try {
     const event = await Event.findOne({ slug: req.params.slug });
     if (!event) return res.status(404).json({ message: "Event not found" });
-    if (event.organizerId !== (req.user.sub||req.user.id)) return res.status(403).json({ message: "Only the organizer can update" });
+    if (event.organizerId !== (req.user.sub||req.user.id) && req.user.role !== "admin") return res.status(403).json({ message: "Only the organizer or admin can update" });
+    // allow admin to update donation needs and payment QR
+    if (req.body.donationNeeds !== undefined) event.donationNeeds = req.body.donationNeeds;
+    if (req.body.paymentQr !== undefined) event.paymentQr = req.body.paymentQr;
     Object.assign(event, req.body);
     await event.save();
     res.json({ message: "Event updated", event: await serializeEvent(event) });
@@ -97,7 +104,7 @@ exports.deleteEvent = async (req, res) => {
   try {
     const event = await Event.findOne({ slug: req.params.slug });
     if (!event) return res.status(404).json({ message: "Event not found" });
-    if (event.organizerId !== (req.user.sub||req.user.id)) return res.status(403).json({ message: "Only the organizer can delete" });
+    if (event.organizerId !== (req.user.sub||req.user.id) && req.user.role !== "admin") return res.status(403).json({ message: "Only the organizer or admin can delete" });
     await event.deleteOne();
     res.json({ message: "Event deleted" });
   } catch (err) { res.status(500).json({ error: err.message }); }

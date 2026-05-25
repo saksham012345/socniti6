@@ -11,6 +11,8 @@ const typeDefs = gql`
     description: String!
     category: String!
     imageUrl: String
+    paymentQr: String
+    organizerVerified: Boolean!
     organizerId: ID!
     organizer: User
     organizerName: String
@@ -107,6 +109,7 @@ const typeDefs = gql`
     description: String!
     category: String!
     imageUrl: String
+    paymentQr: String
     organizerName: String
     locationName: String!
     address: String
@@ -124,6 +127,7 @@ const typeDefs = gql`
     description: String
     category: String
     imageUrl: String
+    paymentQr: String
     locationName: String
     address: String
     city: String
@@ -165,6 +169,8 @@ const typeDefs = gql`
     updateEvent(slug: String!, input: UpdateEventInput!): EventMutationResponse!
     
     deleteEvent(slug: String!): EventMutationResponse!
+    
+    verifyOrganizerForEvent(slug: String!): EventMutationResponse!
     
     registerForEvent(slug: String!, input: RegisterForEventInput): EventMutationResponse!
     

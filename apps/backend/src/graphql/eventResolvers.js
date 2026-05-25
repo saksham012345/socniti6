@@ -28,6 +28,8 @@ const serializeEvent = async (event, viewerCoordinates) => {
     waitlistCount: event.waitlistCount,
     status: event.status,
     donationNeeds: event.donationNeeds || [],
+    paymentQr: event.paymentQr || null,
+    organizerVerified: !!event.organizerVerified,
     participants: (event.participants || []).map(p => ({
       userId: p.userId,
       fullName: p.fullName || null,
@@ -118,7 +120,7 @@ const resolvers = {
         startsAt: new Date(input.startsAt),
         endsAt: input.endsAt ? new Date(input.endsAt) : null,
         maxParticipants: input.maxParticipants || 50,
-        status: "upcoming", donationNeeds: input.donationNeeds || []
+        status: "upcoming", donationNeeds: input.donationNeeds || [], paymentQr: input.paymentQr || null
       });
       return { success: true, message: "Event created successfully", event: await serializeEvent(event) };
     },
@@ -127,7 +129,7 @@ const resolvers = {
       if (!context.user) throw new Error("Authentication required");
       const event = await Event.findOne({ slug });
       if (!event) throw new Error("Event not found");
-      if (event.organizerId !== context.user.sub) throw new Error("Only the organizer can update this event");
+      if (event.organizerId !== context.user.sub && context.user.role !== "admin") throw new Error("Only the organizer or admin can update this event");
       if (input.title) event.title = input.title;
       if (input.description) event.description = input.description;
       if (input.category) event.category = input.category;
@@ -142,6 +144,7 @@ const resolvers = {
       if (input.maxParticipants) event.maxParticipants = input.maxParticipants;
       if (input.status) event.status = input.status;
       if (input.donationNeeds) event.donationNeeds = input.donationNeeds;
+      if (input.paymentQr !== undefined) event.paymentQr = input.paymentQr;
       await event.save();
       return { success: true, message: "Event updated successfully", event: await serializeEvent(event) };
     },
@@ -150,9 +153,19 @@ const resolvers = {
       if (!context.user) throw new Error("Authentication required");
       const event = await Event.findOne({ slug });
       if (!event) throw new Error("Event not found");
-      if (event.organizerId !== context.user.sub) throw new Error("Only the organizer can delete this event");
+      if (event.organizerId !== context.user.sub && context.user.role !== "admin") throw new Error("Only the organizer or admin can delete this event");
       await event.deleteOne();
       return { success: true, message: "Event deleted successfully", event: null };
+    },
+
+    verifyOrganizerForEvent: async (_, { slug }, context) => {
+      if (!context.user) throw new Error("Authentication required");
+      if (context.user.role !== "admin") throw new Error("Insufficient permissions");
+      const event = await Event.findOne({ slug });
+      if (!event) throw new Error("Event not found");
+      event.organizerVerified = true;
+      await event.save();
+      return { success: true, message: "Organizer verified for event", event: await serializeEvent(event) };
     },
 
     registerForEvent: async (_, { slug, input }, context) => {

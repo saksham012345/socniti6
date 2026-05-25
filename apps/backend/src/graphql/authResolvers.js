@@ -59,55 +59,14 @@ const validatePassword = (password) => {
 };
 
 const sendOtpEmail = async (email, otp, fullName) => {
-    try {
-        const nodemailer = require("nodemailer");
-        
-        // Check if SMTP is configured
-        if (!process.env.SMTP_HOST || process.env.SMTP_HOST === "smtp.example.com") {
-            console.log("\n" + "=".repeat(60));
-            console.log("📧 OTP EMAIL (SMTP not configured - showing in console)");
-            console.log("=".repeat(60));
-            console.log(`To: ${email}`);
-            console.log(`Name: ${fullName}`);
-            console.log(`OTP Code: ${otp}`);
-            console.log("=".repeat(60) + "\n");
-            return true;
-        }
-
-        const transporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST,
-            port: process.env.SMTP_PORT || 587,
-            secure: process.env.SMTP_PORT == 465,
-            auth: {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASS,
-            },
-        });
-
-        await transporter.sendMail({
-            from: process.env.SMTP_FROM || "SOCNITI <noreply@socniti.com>",
-            to: email,
-            subject: "Verify your SOCNITI Account",
-            text: `Hello ${fullName},\n\nYour verification code is: ${otp}\n\nThis code will expire in 10 minutes.\n\nIf you didn't request this, please ignore this email.`,
-            html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h2 style="color: #4F46E5;">Welcome to SOCNITI!</h2>
-                    <p>Hello ${fullName},</p>
-                    <p>Your verification code is:</p>
-                    <div style="background: #f3f4f6; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #4F46E5;">
-                        ${otp}
-                    </div>
-                    <p style="color: #6b7280; font-size: 14px;">This code will expire in 10 minutes.</p>
-                    <p style="color: #6b7280; font-size: 14px;">If you didn't request this, please ignore this email.</p>
-                </div>
-            `,
-        });
-        
-        return true;
-    } catch (err) {
-        console.error("❌ Failed to send OTP email:", err.message);
-        return false;
-    }
+    console.log("\n" + "=".repeat(60));
+    console.log("📧 OTP EMAIL SYSTEM DISABLED - OTP is logged to server only");
+    console.log("=".repeat(60));
+    console.log(`To: ${email}`);
+    console.log(`Name: ${fullName}`);
+    console.log(`OTP Code: ${otp}`);
+    console.log("=".repeat(60) + "\n");
+    return true;
 };
 
 const resolvers = {
@@ -223,14 +182,12 @@ const resolvers = {
                     });
                 }
 
-                // Send OTP email
-                const emailSent = await sendOtpEmail(normalizedEmail, otp, fullName);
+                // Send OTP OTP by logging only (email sending disabled)
+                await sendOtpEmail(normalizedEmail, otp, fullName);
 
                 return {
                     success: true,
-                    message: emailSent 
-                        ? `OTP sent to ${normalizedEmail}. Please check your email (or console if SMTP not configured).`
-                        : `Account created! OTP: ${otp} (Email sending failed, showing OTP here)`,
+                    message: `Account created! OTP generated and logged to the server. Use the code from the backend logs to verify your account.`,
                 };
             } catch (err) {
                 console.error("❌ Signup error:", err.message);
@@ -365,7 +322,7 @@ const resolvers = {
 
                 return {
                     success: true,
-                    message: "OTP has been sent to your email.",
+                    message: "OTP generated and logged to the server. Email sending is disabled.",
                 };
             } catch (err) {
                 console.error("❌ Register error:", err.message);
@@ -400,7 +357,7 @@ const resolvers = {
 
                 return {
                     success: true,
-                    message: "OTP has been sent to your email.",
+                    message: "OTP generated and logged to the server. Email sending is disabled.",
                 };
             } catch (err) {
                 console.error("❌ Send OTP error:", err.message);

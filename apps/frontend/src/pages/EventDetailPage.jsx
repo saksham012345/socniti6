@@ -244,7 +244,27 @@ export default function EventDetailPage() {
               className="w-full flex items-center justify-center gap-2 bg-clay text-white py-3 px-4 rounded-full hover:bg-clay/90 font-semibold shadow-soft transition-all">
               <Heart size={20} /> Donate to this Event
             </button>
+            {event.paymentQr && (
+              <div className="mt-3">
+                <p className="text-xs text-ink/50">Payment QR / Link</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <input value={event.paymentQr} readOnly className="flex-1 rounded-lg border border-ink/15 px-3 py-2 text-sm bg-gray-50" />
+                  <button onClick={()=>{ navigator.clipboard.writeText(event.paymentQr); toast.success('Copied payment link'); }} className="rounded-lg bg-leaf px-3 py-2 text-sm font-semibold text-white">Copy</button>
+                </div>
+              </div>
+            )}
           </div>
+
+          {event.donationNeeds && event.donationNeeds.length > 0 && (
+            <div className="rounded-[2rem] bg-white p-6 shadow-soft">
+              <h3 className="text-sm font-semibold text-ink mb-3">Needed items</h3>
+              <ul className="space-y-2 text-sm text-ink/70">
+                {event.donationNeeds.map((it, idx) => (
+                  <li key={idx} className="flex justify-between"><span>{it.item}</span><span className="font-semibold">{it.quantity} needed</span></li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {event.organizer && (
             <div className="rounded-[2rem] bg-white p-6 shadow-soft">
