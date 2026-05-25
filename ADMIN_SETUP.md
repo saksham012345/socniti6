@@ -34,7 +34,7 @@ Use these credentials to access the admin panel:
    - Email: `admin@socniti.com`
    - Password: `admin123`
    - Select Role: Choose **"admin"** option
-   - Verify OTP sent to email
+   - The account is created without email verification
 
 2. **Login with credentials**:
    - Username: `admin`
@@ -107,6 +107,5 @@ bcrypt.hashSync('admin123', 10);
 - Create new admin user via signup
 
 **Need to verify users?**
-- Users must verify email via OTP before they can login
-- OTP sent to registered email address
-- OTP expires after 10 minutes
+- User email verification is disabled.
+- New users can sign up and log in with their password immediately.

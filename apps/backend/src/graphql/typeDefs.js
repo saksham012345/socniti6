@@ -18,11 +18,6 @@ const typeDefs = gql`
     user: User!
   }
 
-  type OtpStatus {
-    success: Boolean!
-    message: String!
-  }
-
   type Coordinates {
     lat: Float!
     lng: Float!
@@ -210,12 +205,9 @@ const typeDefs = gql`
   }
 
   type Mutation {
-    signup(fullName: String!, username: String!, email: String!, password: String!, role: String): OtpStatus!
-    verifySignupOtp(email: String!, otp: String!): AuthPayload!
+    signup(fullName: String!, username: String!, email: String!, password: String!, role: String): AuthPayload!
     login(username: String!, password: String!): AuthPayload!
-    register(fullName: String!, email: String!, password: String!, role: String): OtpStatus!
-    sendOtp(email: String!): OtpStatus!
-    verifyOtp(email: String!, otp: String!): AuthPayload!
+    register(fullName: String!, email: String!, password: String!, role: String): AuthPayload!
     createEvent(input: CreateEventInput!): EventMutationResponse!
     updateEvent(slug: String!, input: UpdateEventInput!): EventMutationResponse!
     deleteEvent(slug: String!): EventMutationResponse!

@@ -14,10 +14,6 @@ const ERRORS = {
     EMAIL_EXISTS: "Email is already registered",
     USER_NOT_FOUND: "User not found",
     INVALID_CREDENTIALS: "Invalid username or password",
-    ACCOUNT_NOT_VERIFIED: "Please verify your account with the OTP shown in the server logs",
-    INVALID_OTP: "Invalid or expired OTP code",
-    OTP_EXPIRED: "OTP has expired. Please request a new one",
-    EMAIL_SEND_FAILED: "Email delivery is disabled. Use the OTP shown in the server logs",
     DATABASE_ERROR: "Database error occurred. Please try again",
     MONGODB_NOT_CONNECTED: "Database connection error. Please contact support",
 };
@@ -56,17 +52,6 @@ const validatePassword = (password) => {
     if (!password || password.length < 6) {
         throw new Error(ERRORS.INVALID_PASSWORD);
     }
-};
-
-const sendOtpEmail = async (email, otp, fullName) => {
-    console.log("\n" + "=".repeat(60));
-    console.log("📧 OTP EMAIL SYSTEM DISABLED - OTP is logged to server only");
-    console.log("=".repeat(60));
-    console.log(`To: ${email}`);
-    console.log(`Name: ${fullName}`);
-    console.log(`OTP Code: ${otp}`);
-    console.log("=".repeat(60) + "\n");
-    return true;
 };
 
 const resolvers = {
@@ -121,7 +106,6 @@ const resolvers = {
     },
 
     Mutation: {
-        // NEW: Signup with username and OTP verification
         signup: async (_, { fullName, username, email, password, role }) => {
             try {
                 // Validate inputs
@@ -138,13 +122,13 @@ const resolvers = {
 
                 // Check if username exists
                 const existingUsername = await User.findOne({ username: normalizedUsername });
-                if (existingUsername && existingUsername.verified) {
+                if (existingUsername) {
                     throw new Error(ERRORS.USERNAME_EXISTS);
                 }
 
                 // Check if email exists
                 const existingEmail = await User.findOne({ email: normalizedEmail });
-                if (existingEmail && existingEmail.verified) {
+                if (existingEmail) {
                     throw new Error(ERRORS.EMAIL_EXISTS);
                 }
 
@@ -152,94 +136,19 @@ const resolvers = {
                 const salt = await bcrypt.genSalt(10);
                 const hashedPassword = await bcrypt.hash(password, salt);
 
-                // Generate OTP
-                const otp = Math.floor(100000 + Math.random() * 900000).toString();
-                const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+                const user = await User.create({
+                    fullName,
+                    username: normalizedUsername,
+                    email: normalizedEmail,
+                    password: hashedPassword,
+                    role: role || "user",
+                    verified: true,
+                });
 
-                // Create or update user
-                let user;
-                if (existingUsername || existingEmail) {
-                    user = existingUsername || existingEmail;
-                    user.fullName = fullName;
-                    user.username = normalizedUsername;
-                    user.email = normalizedEmail;
-                    user.password = hashedPassword;
-                    user.role = role || "user";
-                    user.otp = otp;
-                    user.otpExpires = otpExpires;
-                    user.verified = false;
-                    await user.save();
-                } else {
-                    user = await User.create({
-                        fullName,
-                        username: normalizedUsername,
-                        email: normalizedEmail,
-                        password: hashedPassword,
-                        role: role || "user",
-                        otp,
-                        otpExpires,
-                        verified: false,
-                    });
-                }
-
-                // Send OTP OTP by logging only (email sending disabled)
-                await sendOtpEmail(normalizedEmail, otp, fullName);
-
-                return {
-                    success: true,
-                    message: `Account created! OTP generated and logged to the server. Use the code from the backend logs to verify your account.`,
-                };
+                return { token: generateToken(user), user };
             } catch (err) {
                 console.error("❌ Signup error:", err.message);
                 throw new Error(`Signup failed: ${err.message}`);
-            }
-        },
-
-        // NEW: Verify signup OTP
-        verifySignupOtp: async (_, { email, otp }) => {
-            try {
-                if (!email || !otp) {
-                    throw new Error("Email and OTP are required");
-                }
-
-                const user = await User.findOne({ email: email.toLowerCase().trim() });
-                
-                if (!user) {
-                    throw new Error(ERRORS.USER_NOT_FOUND);
-                }
-
-                if (user.verified) {
-                    // Already verified, just log them in
-                    const token = generateToken(user);
-                    return { token, user };
-                }
-
-                if (!user.otp || !user.otpExpires) {
-                    throw new Error("No OTP found. Please request a new one.");
-                }
-
-                if (new Date() > user.otpExpires) {
-                    throw new Error(ERRORS.OTP_EXPIRED);
-                }
-
-                if (user.otp !== otp) {
-                    throw new Error(ERRORS.INVALID_OTP);
-                }
-
-                // Verify user
-                user.otp = undefined;
-                user.otpExpires = undefined;
-                user.verified = true;
-                await user.save();
-
-                const token = generateToken(user);
-                
-                console.log(`✅ User verified: ${user.username} (${user.email})`);
-                
-                return { token, user };
-            } catch (err) {
-                console.error("❌ OTP verification error:", err.message);
-                throw new Error(`Verification failed: ${err.message}`);
             }
         },
 
@@ -255,10 +164,6 @@ const resolvers = {
                 
                 if (!user) {
                     throw new Error(ERRORS.INVALID_CREDENTIALS);
-                }
-
-                if (!user.verified) {
-                    throw new Error(ERRORS.ACCOUNT_NOT_VERIFIED);
                 }
 
                 const isMatch = await bcrypt.compare(password, user.password || "");
@@ -290,107 +195,26 @@ const resolvers = {
                 }
 
                 let user = await User.findOne({ email: normalizedEmail });
-                if (user && user.verified !== false) {
+                if (user) {
                     throw new Error(ERRORS.EMAIL_EXISTS);
                 }
 
                 const salt = await bcrypt.genSalt(10);
                 const hashedPassword = await bcrypt.hash(password, salt);
 
-                if (!user) {
-                    user = await User.create({
-                        fullName,
-                        username: normalizedEmail.split("@")[0],
-                        email: normalizedEmail,
-                        password: hashedPassword,
-                        role: role || "user",
-                        verified: false,
-                    });
-                } else {
-                    user.fullName = fullName;
-                    user.password = hashedPassword;
-                    user.role = role || user.role;
-                    user.verified = false;
-                }
+                user = await User.create({
+                    fullName,
+                    username: normalizedEmail.split("@")[0],
+                    email: normalizedEmail,
+                    password: hashedPassword,
+                    role: role || "user",
+                    verified: true,
+                });
 
-                const otp = Math.floor(100000 + Math.random() * 900000).toString();
-                user.otp = otp;
-                user.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
-                await user.save();
-
-                await sendOtpEmail(normalizedEmail, otp, fullName);
-
-                return {
-                    success: true,
-                    message: "OTP generated and logged to the server. Email sending is disabled.",
-                };
+                return { token: generateToken(user), user };
             } catch (err) {
                 console.error("❌ Register error:", err.message);
                 throw new Error(`Registration failed: ${err.message}`);
-            }
-        },
-
-        sendOtp: async (_, { email }) => {
-            try {
-                let user = await User.findOne({ email });
-                if (!user) {
-                    user = await User.create({
-                        fullName: `User ${email.split("@")[0]}`,
-                        username: email.split("@")[0],
-                        email,
-                        password: "",
-                        role: "user",
-                        verified: false,
-                    });
-                }
-                
-                if (user.verified !== false) {
-                    throw new Error("Email already verified. Please log in.");
-                }
-
-                const otp = Math.floor(100000 + Math.random() * 900000).toString();
-                user.otp = otp;
-                user.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
-                await user.save();
-
-                await sendOtpEmail(email, otp, user.fullName);
-
-                return {
-                    success: true,
-                    message: "OTP generated and logged to the server. Email sending is disabled.",
-                };
-            } catch (err) {
-                console.error("❌ Send OTP error:", err.message);
-                throw new Error(`Failed to send OTP: ${err.message}`);
-            }
-        },
-
-        verifyOtp: async (_, { email, otp }) => {
-            try {
-                const user = await User.findOne({ email });
-                if (!user) {
-                    throw new Error(ERRORS.USER_NOT_FOUND);
-                }
-
-                if (user.verified !== false) {
-                    const token = generateToken(user);
-                    return { token, user };
-                }
-
-                if (user.otp !== otp) {
-                    throw new Error(ERRORS.INVALID_OTP);
-                }
-
-                user.otp = undefined;
-                user.otpExpires = undefined;
-                user.verified = true;
-                await user.save();
-
-                const token = generateToken(user);
-                return { token, user };
-            } catch (err) {
-                console.error("❌ Verify OTP error:", err.message);
-                throw new Error(`Verification failed: ${err.message}`);
             }
         },
     },

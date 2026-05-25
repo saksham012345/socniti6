@@ -18,11 +18,6 @@ const typeDefs = gql`
     user: User!
   }
 
-  type OtpStatus {
-    success: Boolean!
-    message: String!
-  }
-
   type Query {
     me: User
     user(id: ID!): User
@@ -30,17 +25,13 @@ const typeDefs = gql`
   }
 
   type Mutation {
-    # Signup with OTP verification (two-factor)
-    signup(fullName: String!, username: String!, email: String!, password: String!, role: String): OtpStatus!
-    verifySignupOtp(email: String!, otp: String!): AuthPayload!
-    
+    signup(fullName: String!, username: String!, email: String!, password: String!, role: String): AuthPayload!
+
     # Login with username and password
     login(username: String!, password: String!): AuthPayload!
-    
+
     # Legacy support
-    register(fullName: String!, email: String!, password: String!, role: String): OtpStatus!
-    sendOtp(email: String!): OtpStatus!
-    verifyOtp(email: String!, otp: String!): AuthPayload!
+    register(fullName: String!, email: String!, password: String!, role: String): AuthPayload!
   }
 `;
 

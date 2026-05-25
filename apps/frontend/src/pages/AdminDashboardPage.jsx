@@ -425,9 +425,9 @@ export default function AdminDashboardPage() {
                 <div className="rounded-xl border border-ink/10 bg-white p-5">
                   <div className="flex items-center gap-3">
                     <AlertCircle className="text-clay" size={22} />
-                    <h2 className="font-bold text-ink">Email Delivery Disabled</h2>
+                    <h2 className="font-bold text-ink">Email Verification Disabled</h2>
                   </div>
-                  <p className="mt-3 text-sm text-ink/60">OTP codes are printed in backend server logs instead of being emailed.</p>
+                  <p className="mt-3 text-sm text-ink/60">New users can sign up and log in with their password immediately.</p>
                 </div>
                 <div className="rounded-xl border border-ink/10 bg-white p-5">
                   <div className="flex items-center gap-3">

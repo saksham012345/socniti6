@@ -6,7 +6,6 @@ function _format(row) {
     fullName: row.full_name, username: row.username,
     email: row.email, phone: row.phone, password: row.password,
     role: row.role, verified: row.verified,
-    otp: row.otp, otpExpires: row.otp_expires,
     bio: row.bio, location: row.location, avatarUrl: row.avatar_url,
     createdAt: row.created_at, updatedAt: row.updated_at,
   };
@@ -15,7 +14,7 @@ function _format(row) {
 }
 
 function _col(key) {
-  const map = { id: "id", _id: "id", fullName: "full_name", username: "username", email: "email", phone: "phone", password: "password", role: "role", verified: "verified", otp: "otp", otpExpires: "otp_expires" };
+  const map = { id: "id", _id: "id", fullName: "full_name", username: "username", email: "email", phone: "phone", password: "password", role: "role", verified: "verified" };
   return map[key] || key;
 }
 
@@ -43,20 +42,19 @@ const User = {
   },
   async create(data) {
     const res = await query(
-      `INSERT INTO users (full_name,username,email,phone,password,role,verified,otp,otp_expires,bio,location,avatar_url)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+      `INSERT INTO users (full_name,username,email,phone,password,role,verified,bio,location,avatar_url)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
       [data.fullName, data.username, data.email||null, data.phone||null, data.password||null,
-       data.role||"user", data.verified??false, data.otp||null, data.otpExpires||null,
-       data.bio||null, data.location||null, data.avatarUrl||null]
+       data.role||"user", data.verified??true, data.bio||null, data.location||null, data.avatarUrl||null]
     );
     return _format(res.rows[0]);
   },
   async _save(user) {
     const res = await query(
       `UPDATE users SET full_name=$1,username=$2,email=$3,phone=$4,password=$5,role=$6,verified=$7,
-       otp=$8,otp_expires=$9,bio=$10,location=$11,avatar_url=$12,updated_at=NOW() WHERE id=$13 RETURNING *`,
+       bio=$8,location=$9,avatar_url=$10,updated_at=NOW() WHERE id=$11 RETURNING *`,
       [user.fullName,user.username,user.email,user.phone,user.password,user.role,user.verified,
-       user.otp||null,user.otpExpires||null,user.bio||null,user.location||null,user.avatarUrl||null,user.id]
+       user.bio||null,user.location||null,user.avatarUrl||null,user.id]
     );
     return _format(res.rows[0]);
   }

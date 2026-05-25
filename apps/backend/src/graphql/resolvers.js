@@ -14,17 +14,6 @@ const toIso = (d) => (d instanceof Date ? d.toISOString() : d ? new Date(d).toIS
 
 const generateToken = (user) => jwt.sign({ sub: user.id, id: user.id, username: user.username, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: "30d" });
 
-const sendOtpEmail = async (email, otp, fullName) => {
-  console.log("\n" + "=".repeat(60));
-  console.log("📧 OTP EMAIL SYSTEM DISABLED - OTP is logged to server only");
-  console.log("=".repeat(60));
-  console.log(`To: ${email}`);
-  console.log(`Name: ${fullName}`);
-  console.log(`OTP Code: ${otp}`);
-  console.log("=".repeat(60) + "\n");
-  return true;
-};
-
 const serializeEvent = async (event, vc) => {
   if (event.loadParticipants) await event.loadParticipants();
   return {
@@ -123,36 +112,15 @@ const resolvers = {
       if (password.length < 6) throw new Error("Password must be at least 6 characters");
       const ne = email.toLowerCase().trim(), nu = username.toLowerCase().trim();
       const existing = await User.findOne({ email: ne });
-      if (existing?.verified) throw new Error("Email already registered");
+      if (existing) throw new Error("Email already registered");
       const hashedPassword = await bcrypt.hash(password, 10);
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
-      if (existing) {
-        existing.fullName = fullName; existing.username = nu; existing.password = hashedPassword;
-        existing.role = role||"user"; existing.otp = otp; existing.otpExpires = otpExpires; existing.verified = false;
-        await existing.save();
-      } else {
-        await User.create({ fullName, username: nu, email: ne, password: hashedPassword, role: role||"user", otp, otpExpires, verified: false });
-      }
-      sendOtpEmail(ne, otp, fullName).catch(err => console.error("Email send error:", err.message));
-      return { success: true, message: "Email delivery is disabled. Use the OTP shown in the server logs." };
-    },
-
-    verifySignupOtp: async (_, { email, otp }) => {
-      const user = await User.findOne({ email: email.toLowerCase().trim() });
-      if (!user) throw new Error("User not found");
-      if (user.verified) return { token: generateToken(user), user };
-      if (!user.otp || new Date() > user.otpExpires) throw new Error("OTP expired");
-      if (user.otp !== otp) throw new Error("Invalid OTP");
-      user.otp = null; user.otpExpires = null; user.verified = true;
-      await user.save();
+      const user = await User.create({ fullName, username: nu, email: ne, password: hashedPassword, role: role||"user", verified: true });
       return { token: generateToken(user), user };
     },
 
     login: async (_, { username, password }) => {
       const user = await User.findOne({ username: username.toLowerCase().trim() });
       if (!user) throw new Error("Invalid credentials");
-      if (!user.verified) throw new Error("Please verify your account first");
       const ok = await bcrypt.compare(password, user.password||"");
       if (!ok) throw new Error("Invalid credentials");
       return { token: generateToken(user), user };
@@ -161,33 +129,9 @@ const resolvers = {
     register: async (_, { fullName, email, password, role }) => {
       const ne = email.toLowerCase().trim();
       let user = await User.findOne({ email: ne });
-      if (user?.verified) throw new Error("Email already registered");
+      if (user) throw new Error("Email already registered");
       const hashedPassword = await bcrypt.hash(password, 10);
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
-      if (!user) user = await User.create({ fullName, username: ne.split("@")[0], email: ne, password: hashedPassword, role: role||"user", otp, otpExpires, verified: false });
-      else { user.fullName = fullName; user.password = hashedPassword; user.otp = otp; user.otpExpires = otpExpires; await user.save(); }
-      sendOtpEmail(ne, otp, fullName).catch(err => console.error("Email send error:", err.message));
-      return { success: true, message: "Email delivery is disabled. Use the OTP shown in the server logs." };
-    },
-
-    sendOtp: async (_, { email }) => {
-      let user = await User.findOne({ email });
-      if (!user) user = await User.create({ fullName: email.split("@")[0], username: email.split("@")[0], email, password: "", role: "user", verified: false });
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      user.otp = otp; user.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
-      await user.save();
-      sendOtpEmail(email, otp, user.fullName).catch(err => console.error("Email send error:", err.message));
-      return { success: true, message: "Email delivery is disabled. Use the OTP shown in the server logs." };
-    },
-
-    verifyOtp: async (_, { email, otp }) => {
-      const user = await User.findOne({ email });
-      if (!user) throw new Error("User not found");
-      if (user.verified) return { token: generateToken(user), user };
-      if (user.otp !== otp) throw new Error("Invalid OTP");
-      user.otp = null; user.otpExpires = null; user.verified = true;
-      await user.save();
+      user = await User.create({ fullName, username: ne.split("@")[0], email: ne, password: hashedPassword, role: role||"user", verified: true });
       return { token: generateToken(user), user };
     },
 

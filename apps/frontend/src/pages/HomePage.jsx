@@ -102,7 +102,7 @@ export default function HomePage() {
               <h2 className="font-display text-lg sm:text-xl font-bold">Built with trust in mind</h2>
             </div>
             <p className="mt-3 text-sm sm:text-base text-white/80">
-              JWT auth, OTP support, role-based permissions, and organizer verification fit the
+              JWT auth, password login, role-based permissions, and organizer verification fit the
               mission-critical parts of the product.
             </p>
           </div>
