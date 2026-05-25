@@ -29,26 +29,18 @@ const getAllowedOrigins = () => {
   return explicit;
 };
 
+const isOriginAllowed = (origin) => {
+  if (!origin) return true;
+  if (process.env.NODE_ENV !== "production") return true;
+  if (origin.endsWith(".vercel.app")) return true;
+  if (origin.startsWith("http://localhost") || origin.startsWith("http://127.0.0.1")) return true;
+  return getAllowedOrigins().includes(origin);
+};
+
 const corsOptions = {
   origin: (origin, callback) => {
-    // No origin = server-to-server, curl, health checks → allow
-    if (!origin) return callback(null, true);
+    if (isOriginAllowed(origin)) return callback(null, true);
 
-    // In development allow everything
-    if (process.env.NODE_ENV !== "production") return callback(null, true);
-
-    const allowed = getAllowedOrigins();
-
-    // Always allow any *.vercel.app subdomain (covers preview deployments)
-    if (origin.endsWith(".vercel.app")) return callback(null, true);
-
-    // Always allow localhost
-    if (origin.startsWith("http://localhost") || origin.startsWith("http://127.0.0.1")) return callback(null, true);
-
-    // Check explicit list
-    if (allowed.includes(origin)) return callback(null, true);
-
-    // Log and reject
     console.warn(`CORS blocked: ${origin}`);
     callback(new Error(`CORS: origin ${origin} not allowed`));
   },
@@ -78,7 +70,11 @@ async function start() {
   // ── Socket.IO ───────────────────────────────────────────────────
   const io = new Server(httpServer, {
     cors: {
-      origin: getAllowedOrigins(),
+      origin: (origin, callback) => {
+        if (isOriginAllowed(origin)) return callback(null, true);
+        console.warn(`Socket.IO CORS blocked: ${origin}`);
+        callback(new Error(`Socket.IO CORS: origin ${origin} not allowed`));
+      },
       methods: ["GET", "POST"],
       credentials: true,
     },
