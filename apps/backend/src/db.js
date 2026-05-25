@@ -79,6 +79,9 @@ async function runMigrations() {
     );
   `);
 
+  await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS payment_qr TEXT;`);
+  await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS organizer_verified BOOLEAN NOT NULL DEFAULT false;`);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS event_participants (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

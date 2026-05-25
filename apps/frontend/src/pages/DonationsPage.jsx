@@ -1,24 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { eventApi } from "../lib/api";
+import api, { eventApi } from "../lib/api";
 import {
   Heart, DollarSign, Package, Calendar, MapPin,
   ChevronRight, Loader2, Plus, TrendingUp, Users, Star
 } from "lucide-react";
 import DonationModal from "../components/DonationModal";
 
-const SAMPLE_EVENTS = [
-  { id: "s1", title: "Eye Donation Awareness Camp", category: "Healthcare", city: "Mumbai", startsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(), currentParticipants: 46, maxParticipants: 100, slug: "eye-donation-awareness-camp-mumbai", isSample: true, donationNeeds: [{ item: "Eye drops", quantity: 50, fulfilled: 20 }, { item: "Pamphlets", quantity: 200, fulfilled: 150 }] },
-  { id: "s2", title: "Free Medical Health Camp", category: "Healthcare", city: "Delhi", startsAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(), currentParticipants: 120, maxParticipants: 200, slug: "free-medical-camp-delhi", isSample: true, donationNeeds: [{ item: "Medical Kits", quantity: 100, fulfilled: 45 }, { item: "Medicines", quantity: 500, fulfilled: 200 }] },
-  { id: "s3", title: "Tree Plantation Drive", category: "Environment", city: "Bangalore", startsAt: new Date(Date.now() + 12 * 24 * 60 * 60 * 1000).toISOString(), currentParticipants: 234, maxParticipants: 500, slug: "tree-plantation-drive-bangalore", isSample: true, donationNeeds: [{ item: "Saplings", quantity: 1000, fulfilled: 600 }, { item: "Fertilizer bags", quantity: 50, fulfilled: 10 }] },
-  { id: "s4", title: "Blood Donation Camp", category: "Healthcare", city: "Pune", startsAt: new Date(Date.now() + 9 * 24 * 60 * 60 * 1000).toISOString(), currentParticipants: 67, maxParticipants: 100, slug: "blood-donation-camp-pune", isSample: true, donationNeeds: [] },
-];
 
-const SAMPLE_MY_DONATIONS = [
-  { id: "d1", eventTitle: "Blood Donation Camp", eventSlug: "blood-donation-camp-pune", type: "monetary", amount: 500, status: "completed", createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), message: "Happy to support!" },
-  { id: "d2", eventTitle: "Free Medical Camp", eventSlug: "free-medical-camp-delhi", type: "item", item: "Medical Kits", quantity: 5, status: "completed", createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString() },
-];
 
 const catColors = {
   Healthcare: "bg-ember/10 text-ember",
@@ -45,23 +35,53 @@ function NeedBar({ item, quantity, fulfilled }) {
 export default function DonationsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [events, setEvents] = useState(SAMPLE_EVENTS);
-  const [myDonations, setMyDonations] = useState(SAMPLE_MY_DONATIONS);
+  const [events, setEvents] = useState([]);
+  const [myDonations, setMyDonations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [donateTarget, setDonateTarget] = useState(null);
   const [activeTab, setActiveTab] = useState("give");
   const [categoryFilter, setCategoryFilter] = useState("");
 
-  useEffect(() => { loadEvents(); }, []);
+  useEffect(() => {
+    loadEvents();
+    if (user) loadMyDonations();
+  }, [user]);
 
   const loadEvents = async () => {
     setLoading(true);
     try {
       const res = await eventApi.get("/api/events");
       const upcoming = (res.data.events || []).filter(e => new Date(e.startsAt) > new Date());
-      if (upcoming.length > 0) setEvents(upcoming);
-    } catch { /* keep sample */ }
+      setEvents(upcoming);
+    } catch {
+      toast.error("Could not load donation events");
+    }
     setLoading(false);
+  };
+
+  const loadMyDonations = async () => {
+    try {
+      const res = await api.post("/graphql", {
+        query: `
+          query MyDonations {
+            myDonations {
+              id
+              eventId
+              amount
+              item
+              quantity
+              type
+              status
+              message
+              createdAt
+            }
+          }
+        `
+      });
+      setMyDonations(res.data.data?.myDonations || []);
+    } catch {
+      toast.error("Could not load your donation history");
+    }
   };
 
   const totalMonetary = myDonations.filter(d => d.type === "monetary").reduce((s, d) => s + (d.amount || 0), 0);
@@ -219,7 +239,7 @@ export default function DonationsPage() {
                     }
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-ink truncate">{d.eventTitle}</p>
+                    <p className="text-sm font-semibold text-ink truncate">Event #{String(d.eventId).slice(0, 8)}</p>
                     <p className="text-xs text-ink/50 mt-0.5">
                       {d.type === "monetary" ? `₹${d.amount}` : `${d.quantity}x ${d.item}`}
                       {d.message && ` · "${d.message}"`}
@@ -248,7 +268,7 @@ export default function DonationsPage() {
 
       {donateTarget && (
         <DonationModal isOpen={!!donateTarget} onClose={() => setDonateTarget(null)}
-          eventId={donateTarget.id} eventTitle={donateTarget.title} isSample={donateTarget.isSample} />
+          eventId={donateTarget.id} eventTitle={donateTarget.title} paymentQr={donateTarget.paymentQr} />
       )}
     </div>
   );

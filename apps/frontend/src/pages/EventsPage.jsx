@@ -8,20 +8,7 @@ import CreateEventModal from "../components/CreateEventModal";
 import DonationModal from "../components/DonationModal";
 import toast from "react-hot-toast";
 
-// Sample events — all set in the future so they always show
-const now = new Date();
-const future = (days, h = 10) => {
-  const d = new Date(now); d.setDate(d.getDate() + days); d.setHours(h, 0, 0, 0); return d.toISOString();
-};
 
-const SAMPLE_EVENTS = [
-  { id: "sample-1", title: "Eye Donation Awareness Camp", description: "Join us for an eye donation awareness camp. Learn about the importance of eye donation and pledge to donate your eyes. Free eye checkup available.", category: "Healthcare", locationName: "Lions Club Community Center", city: "Mumbai", state: "Maharashtra", startsAt: future(3), currentParticipants: 45, maxParticipants: 100, slug: "eye-donation-awareness-camp-mumbai", isSample: true },
-  { id: "sample-2", title: "Juhu Beach Cleanup Drive", description: "Help us clean Juhu Beach and make it plastic-free. Bring your friends and family for a morning of community service. Gloves and bags provided.", category: "Environment", locationName: "Juhu Beach", city: "Mumbai", state: "Maharashtra", startsAt: future(5, 7), currentParticipants: 78, maxParticipants: 150, slug: "beach-cleanup-drive-juhu", isSample: true },
-  { id: "sample-3", title: "Free Medical Health Camp", description: "Free health checkup for underprivileged communities. General screening, blood pressure, diabetes testing, and doctor consultations available.", category: "Healthcare", locationName: "Government School Ground", city: "Delhi", state: "Delhi", startsAt: future(7, 9), currentParticipants: 120, maxParticipants: 200, slug: "free-medical-camp-delhi", isSample: true },
-  { id: "sample-4", title: "Tree Plantation Drive", description: "Plant 1000 trees in one day! Join our mission to make Bangalore greener. Saplings and tools will be provided. Refreshments included.", category: "Environment", locationName: "Cubbon Park", city: "Bangalore", state: "Karnataka", startsAt: future(10, 6), currentParticipants: 234, maxParticipants: 500, slug: "tree-plantation-drive-bangalore", isSample: true },
-  { id: "sample-5", title: "Blood Donation Camp", description: "Donate blood, save lives. Organized by Indian Red Cross Society. All blood groups needed. Certificate of appreciation provided.", category: "Healthcare", locationName: "City Hospital", city: "Pune", state: "Maharashtra", startsAt: future(4, 8), currentParticipants: 67, maxParticipants: 100, slug: "blood-donation-camp-pune", isSample: true },
-  { id: "sample-6", title: "Street Dog Vaccination Drive", description: "Help vaccinate street dogs against rabies. Veterinary team present. Volunteers needed for handling and documentation.", category: "Animal Welfare", locationName: "Sector 15 Market", city: "Noida", state: "Uttar Pradesh", startsAt: future(8, 7), currentParticipants: 23, maxParticipants: 50, slug: "street-dog-vaccination-noida", isSample: true },
-];
 
 const categoryColors = {
   Healthcare: "bg-ember/10 text-ember", Environment: "bg-leaf/10 text-leaf",
@@ -46,12 +33,6 @@ function JoinEventModal({ event, onClose, onSuccess, alreadyJoined }) {
   const handleJoin = async () => {
     if (!user) { toast.error("Please login to register"); navigate("/login"); return; }
     if (!form.fullName.trim() || !form.email.trim()) { toast.error("Name and email are required"); return; }
-    if (event.isSample) {
-      toast.success("Registered successfully!");
-      onSuccess();
-      onClose();
-      return;
-    }
     setLoading(true);
     try {
       const res = await eventApi.post(`/api/events/${event.slug}/register`, form);
@@ -141,7 +122,7 @@ function JoinEventModal({ event, onClose, onSuccess, alreadyJoined }) {
 export default function EventsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [events, setEvents] = useState(SAMPLE_EVENTS);
+  const [events, setEvents] = useState([]);
   const [search, setSearch] = useState("");
   const [placeSearch, setPlaceSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -163,11 +144,7 @@ export default function EventsPage() {
       if (categoryFilter) params.category = categoryFilter;
       const res = await eventApi.get("/api/events", { params });
       const real = res.data.events || [];
-      setEvents(prev => {
-        const samples = prev.filter(e => e.isSample);
-        // Merge real events, preserving joined state
-        return [...samples, ...real];
-      });
+      setEvents(real);
       setLastUpdated(new Date());
     } catch {
       if (!silent) toast.error("Could not load events");
@@ -181,9 +158,8 @@ export default function EventsPage() {
     // connect socket
     const s = socketClient.connectSocket();
     const onCreated = (ev) => setEvents(prev => {
-      // ignore samples
       if (prev.find(e => e.id === ev.id)) return prev;
-      return [...prev.filter(e=>e.isSample), ev];
+      return [...prev, ev];
     });
     const onUpdated = (ev) => setEvents(prev => prev.map(e => e.id === ev.id ? ev : e));
     const onDeleted = ({ id, slug }) => setEvents(prev => prev.filter(e => e.id !== id && e.slug !== slug));
@@ -196,10 +172,10 @@ export default function EventsPage() {
     };
   }, [loadEvents]);
 
-  // Filter: only future events for samples, backend already filters real events
+  // Filter: only future events, backend already filters real events
   const filtered = events.filter(e => {
     const isFuture = new Date(e.startsAt) > new Date();
-    if (e.isSample && !isFuture) return false;
+    if (!isFuture) return false;
     if (!search && !placeSearch && !categoryFilter) return true;
     const searchable = [
       e.title,
@@ -291,7 +267,6 @@ export default function EventsPage() {
                       {daysUntil === 0 ? "Today!" : daysUntil === 1 ? "Tomorrow" : `${daysUntil}d left`}
                     </span>
                   )}
-                  {event.isSample && <span className="rounded-full bg-mist px-2 py-0.5 text-xs text-ink/40">Sample</span>}
                 </div>
               </div>
 
@@ -364,7 +339,7 @@ export default function EventsPage() {
       )}
       {donateTarget && (
         <DonationModal isOpen={!!donateTarget} onClose={() => setDonateTarget(null)}
-          eventId={donateTarget.id} eventTitle={donateTarget.title} isSample={donateTarget.isSample} />
+          eventId={donateTarget.id} eventTitle={donateTarget.title} paymentQr={donateTarget.paymentQr} />
       )}
     </div>
   );

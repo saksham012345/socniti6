@@ -14,10 +14,10 @@ const ERRORS = {
     EMAIL_EXISTS: "Email is already registered",
     USER_NOT_FOUND: "User not found",
     INVALID_CREDENTIALS: "Invalid username or password",
-    ACCOUNT_NOT_VERIFIED: "Please verify your account with the OTP sent to your email",
+    ACCOUNT_NOT_VERIFIED: "Please verify your account with the OTP shown in the server logs",
     INVALID_OTP: "Invalid or expired OTP code",
     OTP_EXPIRED: "OTP has expired. Please request a new one",
-    EMAIL_SEND_FAILED: "Failed to send OTP email. Please try again",
+    EMAIL_SEND_FAILED: "Email delivery is disabled. Use the OTP shown in the server logs",
     DATABASE_ERROR: "Database error occurred. Please try again",
     MONGODB_NOT_CONNECTED: "Database connection error. Please contact support",
 };

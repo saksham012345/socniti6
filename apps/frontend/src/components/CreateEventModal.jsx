@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, Calendar, MapPin, Users, Loader2 } from "lucide-react";
+import { X, Calendar, MapPin, Users, Loader2, QrCode } from "lucide-react";
 import { eventApi } from "../lib/api";
 import toast from "react-hot-toast";
 
@@ -32,6 +32,27 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess }) {
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleQrUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file");
+      return;
+    }
+    if (file.size > 700 * 1024) {
+      toast.error("QR image must be under 700KB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setFormData(current => ({ ...current, paymentQr: reader.result }));
+      toast.success("QR photo loaded");
+    };
+    reader.onerror = () => toast.error("Could not read QR image");
+    reader.readAsDataURL(file);
   };
 
   const addDonationItem = () => {
@@ -80,7 +101,7 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess }) {
       toast.success("Event created successfully!");
       onSuccess?.();
       onClose();
-      setFormData({ title: "", description: "", category: "Environment", locationName: "", city: "", state: "", lat: "", lng: "", startsAt: "", maxParticipants: "" });
+      setFormData({ title: "", description: "", category: "Environment", locationName: "", city: "", state: "", lat: "", lng: "", startsAt: "", maxParticipants: "", paymentQr: "", donationNeeds: [] });
     } catch (error) {
       toast.error(error.response?.data?.message || error.response?.data?.error || error.message || "Failed to create event");
     } finally {
@@ -246,6 +267,22 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess }) {
           {/* Payment QR */}
           <div>
             <label className="block text-sm font-semibold text-ink mb-2">Payment QR (for donations)</label>
+            <div className="mb-3 rounded-2xl border border-dashed border-ink/15 p-4">
+              {formData.paymentQr?.startsWith("data:image/") ? (
+                <img src={formData.paymentQr} alt="Payment QR preview" className="mx-auto h-40 w-40 rounded-xl object-contain" />
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-2 py-4 text-ink/50">
+                  <QrCode size={36} />
+                  <p className="text-sm font-semibold">Upload QR photo or paste a payment link</p>
+                </div>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleQrUpload}
+                className="mt-3 w-full rounded-xl border border-ink/15 px-3 py-2 text-sm"
+              />
+            </div>
             <input
               type="text"
               name="paymentQr"
@@ -254,7 +291,7 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess }) {
               className="w-full rounded-2xl border border-ink/15 px-4 py-3 focus:ring-2 focus:ring-leaf focus:border-transparent"
               placeholder="Payment link or QR data"
             />
-            <p className="mt-1 text-xs text-ink/50">Optional: paste a payment link or QR code data for monetary donations.</p>
+            <p className="mt-1 text-xs text-ink/50">Optional: upload a QR image under 700KB or paste a UPI/payment link.</p>
           </div>
 
           {/* Donation items (in-kind) */}

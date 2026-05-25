@@ -6,12 +6,10 @@ import {
   Clock,
   DollarSign,
   Loader2,
-  MessageSquare,
   RefreshCw,
   Settings,
   ShieldCheck,
   Ticket,
-  Users,
   XCircle,
   Zap
 } from "lucide-react";
@@ -51,14 +49,13 @@ const priorityColors = {
   urgent: "bg-red-100 text-red-800"
 };
 
-function StatCard({ label, value, icon: Icon, tone = "text-ink", helper }) {
+function StatCard({ label, value, icon: Icon, tone = "text-ink" }) {
   return (
     <div className="rounded-xl border border-ink/10 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-ink/50">{label}</p>
+          <p className="text-xs font-semibold uppercase text-ink/50">{label}</p>
           <p className={`mt-2 text-2xl font-bold ${tone}`}>{value}</p>
-          {helper && <p className="mt-1 text-xs text-ink/50">{helper}</p>}
         </div>
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-mist text-ink">
           <Icon size={20} />
@@ -81,7 +78,7 @@ function SettlementRow({ settlement, onSettle }) {
   return (
     <tr className="align-top hover:bg-gray-50">
       <td className="px-5 py-4">
-        <p className="text-sm font-semibold text-ink">Event #{settlement.eventId.slice(0, 8)}</p>
+        <p className="text-sm font-semibold text-ink">Event #{String(settlement.eventId).slice(0, 8)}</p>
         <p className="mt-1 text-xs text-ink/50">Updated {new Date(settlement.updatedAt || settlement.createdAt).toLocaleDateString("en-IN")}</p>
       </td>
       <td className="px-5 py-4 text-sm text-ink">{currency.format(settlement.totalAmount)}</td>
@@ -102,53 +99,10 @@ function SettlementRow({ settlement, onSettle }) {
             disabled={disabled}
             onChange={(e) => setAmount(e.target.value)}
             className="w-28 rounded-lg border border-ink/15 px-3 py-2 text-sm outline-none focus:border-leaf disabled:bg-gray-100"
-          </>
-        )
-      }
-
-      {/* Admin Edit Event Modal */}
-      {editEvent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4">
-          <div className="max-w-2xl w-full max-h-[90vh] overflow-y-auto bg-white rounded-[1rem] shadow-soft">
-            <div className="border-b border-ink/10 px-6 py-4 flex items-center justify-between">
-              <h3 className="font-bold text-ink">Edit Event — {editEvent.title}</h3>
-              <button onClick={() => setEditEvent(null)} className="h-9 w-9 rounded-full hover:bg-mist flex items-center justify-center"><XCircle size={16} /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-ink mb-2">Payment QR / Link</label>
-                <input value={editEvent.paymentQr || ""} onChange={(e) => setEditEvent(s => ({ ...s, paymentQr: e.target.value }))}
-                  className="w-full rounded-2xl border border-ink/15 px-4 py-3" placeholder="Payment link or QR data" />
-                <p className="text-xs text-ink/50 mt-1">Optional: paste URL, UPI link or QR data for donations.</p>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between">
-                  <label className="block text-sm font-semibold text-ink mb-2">Needed items (in-kind)</label>
-                  <button onClick={addEditDonationItem} className="text-sm text-leaf font-semibold">Add item</button>
-                </div>
-                <div className="space-y-2">
-                  {(editEvent.donationNeeds||[]).map((it, idx) => (
-                    <div key={idx} className="flex gap-2">
-                      <input value={it.item} onChange={(e)=>updateEditDonationItem(idx,'item',e.target.value)} placeholder="Item" className="flex-1 rounded-lg border border-ink/15 px-3 py-2" />
-                      <input type="number" min="1" value={it.quantity} onChange={(e)=>updateEditDonationItem(idx,'quantity',parseInt(e.target.value||1))} className="w-24 rounded-lg border border-ink/15 px-3 py-2" />
-                      <button onClick={()=>removeEditDonationItem(idx)} className="rounded-lg bg-ember px-3 py-2 text-white">Remove</button>
-                    </div>
-                  ))}
-                  {(editEvent.donationNeeds||[]).length===0 && <p className="text-sm text-ink/50">No items added.</p>}
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <button disabled={editLoading} onClick={saveEditEvent} className="rounded-lg bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{editLoading ? 'Saving...' : 'Save'}</button>
-                <button onClick={() => setEditEvent(null)} className="rounded-lg border border-ink/10 px-4 py-2 text-sm">Cancel</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      </main>
+          />
+          <input
+            value={notes}
+            disabled={disabled}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Notes"
             className="min-w-0 flex-1 rounded-lg border border-ink/15 px-3 py-2 text-sm outline-none focus:border-leaf disabled:bg-gray-100"
@@ -176,8 +130,6 @@ export default function AdminDashboardPage() {
   const [ticketFilter, setTicketFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState("");
-  const [editEvent, setEditEvent] = useState(null);
-  const [editLoading, setEditLoading] = useState(false);
 
   const stats = useMemo(() => {
     const totalDonations = settlements.reduce((sum, item) => sum + item.totalAmount, 0);
@@ -196,20 +148,6 @@ export default function AdminDashboardPage() {
     fetchData();
   }, [activeTab, ticketFilter]);
 
-  // Real-time updates for admin panel
-  useEffect(() => {
-    const socket = require("../lib/socket").connectSocket();
-    const refresh = () => fetchData();
-    socket.on("event-created", refresh);
-    socket.on("event-updated", refresh);
-    socket.on("event-deleted", refresh);
-    socket.on("donation-created", refresh);
-    socket.on("settlement-updated", refresh);
-    return () => {
-      try { socket.off("event-created", refresh); socket.off("event-updated", refresh); socket.off("event-deleted", refresh); socket.off("donation-created", refresh); socket.off("settlement-updated", refresh); } catch {}
-    };
-  }, [activeTab]);
-
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -223,17 +161,14 @@ export default function AdminDashboardPage() {
         setSettlements(donationRes.data.settlements || []);
         setDonations(donationRes.data.donations || []);
         setTickets(ticketRes.data.tickets || []);
-      }
-      if (activeTab === "verification") {
+      } else if (activeTab === "verification") {
         const res = await eventApi.get("/api/events/pending");
         setEvents(res.data.events || []);
-      }
-      if (activeTab === "donations") {
+      } else if (activeTab === "donations") {
         const res = await eventApi.get("/api/donations/settlements");
         setSettlements(res.data.settlements || []);
         setDonations(res.data.donations || []);
-      }
-      if (activeTab === "tickets") {
+      } else if (activeTab === "tickets") {
         const params = ticketFilter === "all" ? "" : `?status=${ticketFilter}`;
         const res = await eventApi.get(`/api/tickets${params}`);
         setTickets(res.data.tickets || []);
@@ -254,33 +189,6 @@ export default function AdminDashboardPage() {
     } catch (err) {
       toast.error(err.response?.data?.message || `Failed to ${action} event`);
     } finally {
-      setSavingId("");
-    }
-  };
-
-  const openEdit = (event) => {
-    // clone and ensure donationNeeds array
-    setEditEvent({ ...event, donationNeeds: event.donationNeeds ? event.donationNeeds.map(d => ({ ...d })) : [] });
-  };
-
-  const addEditDonationItem = () => setEditEvent(e => ({ ...e, donationNeeds: [...(e.donationNeeds||[]), { item: "", quantity: 1, fulfilled: 0 }] }));
-  const updateEditDonationItem = (idx, key, value) => setEditEvent(e => { const items = [...(e.donationNeeds||[])]; items[idx] = { ...items[idx], [key]: value }; return { ...e, donationNeeds: items }; });
-  const removeEditDonationItem = (idx) => setEditEvent(e => { const items = [...(e.donationNeeds||[])]; items.splice(idx,1); return { ...e, donationNeeds: items }; });
-
-  const saveEditEvent = async () => {
-    if (!editEvent) return;
-    try {
-      setEditLoading(true);
-      setSavingId(editEvent.slug);
-      const payload = { paymentQr: editEvent.paymentQr || null, donationNeeds: editEvent.donationNeeds || [] };
-      const res = await eventApi.patch(`/api/events/${editEvent.slug}`, payload);
-      toast.success(res.data?.message || "Event updated");
-      setEditEvent(null);
-      fetchData();
-    } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to update event");
-    } finally {
-      setEditLoading(false);
       setSavingId("");
     }
   };
@@ -313,8 +221,6 @@ export default function AdminDashboardPage() {
       setSavingId("");
     }
   };
-
-  const isBusy = (id) => savingId === id;
 
   return (
     <div className="flex min-h-[calc(100vh-80px)] bg-gray-50">
@@ -352,7 +258,7 @@ export default function AdminDashboardPage() {
       <main className="flex-1 overflow-auto p-4 sm:p-8">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-leaf">SOCNITI operations</p>
+            <p className="text-sm font-semibold uppercase text-leaf">SOCNITI operations</p>
             <h1 className="mt-1 text-2xl font-bold text-ink sm:text-3xl">{tabs.find(tab => tab.id === activeTab)?.label}</h1>
           </div>
           <div className="flex gap-2 overflow-x-auto lg:hidden">
@@ -381,91 +287,48 @@ export default function AdminDashboardPage() {
         ) : (
           <>
             {activeTab === "overview" && (
-              <div className="space-y-6">
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <StatCard label="Pending Events" value={stats.pendingEvents} icon={Zap} tone="text-clay" />
-                  <StatCard label="Donations" value={currency.format(stats.totalDonations)} icon={DollarSign} tone="text-ink" />
-                  <StatCard label="Pending Settlement" value={currency.format(stats.pendingSettlement)} icon={Clock} tone="text-clay" />
-                  <StatCard label="Open Tickets" value={stats.openTickets} icon={MessageSquare} tone="text-leaf" />
-                </div>
-                <div className="grid gap-6 xl:grid-cols-2">
-                  <section className="rounded-xl border border-ink/10 bg-white p-5">
-                    <h2 className="font-bold text-ink">Needs Attention</h2>
-                    <div className="mt-4 space-y-3">
-                      <button onClick={() => setActiveTab("verification")} className="flex w-full items-center justify-between rounded-lg border border-ink/10 p-4 text-left hover:bg-mist">
-                        <span className="font-semibold text-ink">Review pending events</span>
-                        <span className="rounded-full bg-clay/10 px-3 py-1 text-sm font-bold text-clay">{events.length}</span>
-                      </button>
-                      <button onClick={() => setActiveTab("tickets")} className="flex w-full items-center justify-between rounded-lg border border-ink/10 p-4 text-left hover:bg-mist">
-                        <span className="font-semibold text-ink">Resolve support tickets</span>
-                        <span className="rounded-full bg-leaf/10 px-3 py-1 text-sm font-bold text-leaf">{stats.openTickets}</span>
-                      </button>
-                    </div>
-                  </section>
-                  <section className="rounded-xl border border-ink/10 bg-white p-5">
-                    <h2 className="font-bold text-ink">Platform Health</h2>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <StatCard label="Donation Records" value={donations.length} icon={Users} helper="All completed and item donations" />
-                      <StatCard label="Settled" value={currency.format(stats.settled)} icon={CheckCircle} tone="text-leaf" />
-                    </div>
-                  </section>
-                </div>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <StatCard label="Pending Events" value={stats.pendingEvents} icon={Zap} tone="text-clay" />
+                <StatCard label="Donations" value={currency.format(stats.totalDonations)} icon={DollarSign} />
+                <StatCard label="Pending Settlement" value={currency.format(stats.pendingSettlement)} icon={Clock} tone="text-clay" />
+                <StatCard label="Open Tickets" value={stats.openTickets} icon={Ticket} tone="text-leaf" />
               </div>
             )}
 
             {activeTab === "verification" && (
-              <section>
-                {events.length === 0 ? (
-                  <div className="rounded-xl border-2 border-dashed border-gray-300 bg-white p-10 text-center">
-                    <CheckCircle size={44} className="mx-auto mb-4 text-leaf" />
-                    <p className="font-semibold text-ink">All events are reviewed.</p>
-                    <p className="mt-2 text-sm text-ink/60">New organizer submissions will appear here.</p>
-                  </div>
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {events.map(event => (
-                      <article key={event.id} className="rounded-xl border border-ink/10 bg-white p-5 shadow-sm">
-                        <div className="mb-4">
-                          <div className="flex items-start justify-between gap-3">
-                            <h3 className="text-lg font-bold leading-snug text-ink">{event.title}</h3>
-                            <span className="rounded-full bg-clay/10 px-3 py-1 text-xs font-bold text-clay">Pending</span>
-                          </div>
-                          <p className="mt-1 text-sm text-ink/60">By {event.organizerName || "Organizer"}</p>
+              events.length === 0 ? (
+                <div className="rounded-xl border-2 border-dashed border-gray-300 bg-white p-10 text-center">
+                  <CheckCircle size={44} className="mx-auto mb-4 text-leaf" />
+                  <p className="font-semibold text-ink">All events are reviewed.</p>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {events.map(event => (
+                    <article key={event.id} className="rounded-xl border border-ink/10 bg-white p-5 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <h3 className="text-lg font-bold leading-snug text-ink">{event.title}</h3>
+                        <span className="rounded-full bg-clay/10 px-3 py-1 text-xs font-bold text-clay">Pending</span>
+                      </div>
+                      <p className="mt-1 text-sm text-ink/60">By {event.organizerName || "Organizer"}</p>
+                      <p className="mt-4 line-clamp-3 rounded-lg bg-gray-50 p-3 text-sm text-ink/70">{event.description}</p>
+                      {event.paymentQr && (
+                        <div className="mt-4 rounded-lg border border-ink/10 p-3">
+                          <p className="text-xs font-semibold text-ink/50">Payment QR configured</p>
+                          {event.paymentQr.startsWith("data:image/") && <img src={event.paymentQr} alt="Payment QR" className="mt-2 h-24 w-24 rounded-lg object-contain" />}
                         </div>
-                        <p className="line-clamp-3 rounded-lg bg-gray-50 p-3 text-sm text-ink/70">{event.description}</p>
-                        <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-ink/60">
-                          <span>{event.category}</span>
-                          <span>{event.city || event.locationName}</span>
-                          <span>{new Date(event.startsAt).toLocaleDateString("en-IN")}</span>
-                          <span>{event.maxParticipants} seats</span>
-                        </div>
-                        <div className="mt-4 flex gap-2">
-                          <button
-                            disabled={isBusy(event.slug)}
-                            onClick={() => handleEventAction(event.slug, "approve")}
-                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                          >
-                            <CheckCircle size={16} /> Approve
-                          </button>
-                          <button
-                            disabled={isBusy(event.slug)}
-                            onClick={() => handleEventAction(event.slug, "reject")}
-                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-ember px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                          >
-                            <XCircle size={16} /> Reject
-                          </button>
-                          <button
-                            onClick={() => openEdit(event)}
-                            className="inline-flex items-center gap-2 rounded-lg border border-ink/10 px-3 py-2 text-sm font-semibold text-ink hover:bg-mist"
-                          >
-                            Edit
-                          </button>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </section>
+                      )}
+                      <div className="mt-4 flex gap-2">
+                        <button disabled={savingId === event.slug} onClick={() => handleEventAction(event.slug, "approve")} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">
+                          <CheckCircle size={16} /> Approve
+                        </button>
+                        <button disabled={savingId === event.slug} onClick={() => handleEventAction(event.slug, "reject")} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-ember px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">
+                          <XCircle size={16} /> Reject
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )
             )}
 
             {activeTab === "donations" && (
@@ -474,7 +337,7 @@ export default function AdminDashboardPage() {
                   <StatCard label="Total Donations" value={currency.format(stats.totalDonations)} icon={DollarSign} />
                   <StatCard label="Settled" value={currency.format(stats.settled)} icon={CheckCircle} tone="text-leaf" />
                   <StatCard label="Pending" value={currency.format(stats.pendingSettlement)} icon={Clock} tone="text-clay" />
-                  <StatCard label="Events" value={settlements.length} icon={Zap} />
+                  <StatCard label="Records" value={donations.length} icon={DollarSign} />
                 </div>
                 {settlements.length === 0 ? (
                   <div className="rounded-xl border border-ink/10 bg-white p-8 text-center text-ink/60">No settlement records yet.</div>
@@ -492,9 +355,7 @@ export default function AdminDashboardPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-ink/10">
-                        {settlements.map(settlement => (
-                          <SettlementRow key={settlement.id} settlement={settlement} onSettle={handleSettlement} />
-                        ))}
+                        {settlements.map(settlement => <SettlementRow key={settlement.id} settlement={settlement} onSettle={handleSettlement} />)}
                       </tbody>
                     </table>
                   </div>
@@ -509,11 +370,7 @@ export default function AdminDashboardPage() {
                     <h2 className="font-bold text-ink">Ticket Queue</h2>
                     <p className="text-sm text-ink/60">Assign, prioritize, and close support requests.</p>
                   </div>
-                  <select
-                    value={ticketFilter}
-                    onChange={(e) => setTicketFilter(e.target.value)}
-                    className="rounded-lg border border-ink/15 bg-white px-3 py-2 text-sm outline-none focus:border-leaf"
-                  >
+                  <select value={ticketFilter} onChange={(e) => setTicketFilter(e.target.value)} className="rounded-lg border border-ink/15 bg-white px-3 py-2 text-sm outline-none focus:border-leaf">
                     <option value="all">All statuses</option>
                     <option value="open">Open</option>
                     <option value="in-progress">In Progress</option>
@@ -533,48 +390,28 @@ export default function AdminDashboardPage() {
                             <h3 className="font-bold text-ink">{ticket.subject}</h3>
                             <p className="mt-1 text-sm text-ink/60">From {ticket.userName} {ticket.userEmail ? `(${ticket.userEmail})` : ""}</p>
                           </div>
-                          <span className={`rounded-full px-3 py-1 text-xs font-bold ${priorityColors[ticket.priority]}`}>
-                            {ticket.priority}
-                          </span>
+                          <span className={`rounded-full px-3 py-1 text-xs font-bold ${priorityColors[ticket.priority]}`}>{ticket.priority}</span>
                         </div>
                         {ticket.description && <p className="mt-4 rounded-lg bg-gray-50 p-3 text-sm text-ink/70">{ticket.description}</p>}
                         <div className="mt-4 flex flex-wrap items-center gap-2">
-                          <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusColors[ticket.status]}`}>
-                            {ticket.status}
-                          </span>
+                          <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusColors[ticket.status]}`}>{ticket.status}</span>
                           <span className="text-xs text-ink/50">Created {new Date(ticket.createdAt).toLocaleDateString("en-IN")}</span>
                         </div>
                         <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                          <select
-                            value={ticket.status}
-                            disabled={isBusy(ticket.id)}
-                            onChange={(e) => updateTicket(ticket.id, { status: e.target.value })}
-                            className="rounded-lg border border-ink/15 px-3 py-2 text-sm outline-none focus:border-leaf"
-                          >
+                          <select value={ticket.status} disabled={savingId === ticket.id} onChange={(e) => updateTicket(ticket.id, { status: e.target.value })} className="rounded-lg border border-ink/15 px-3 py-2 text-sm outline-none focus:border-leaf">
                             <option value="open">Open</option>
                             <option value="in-progress">In Progress</option>
                             <option value="waiting">Waiting</option>
                             <option value="resolved">Resolved</option>
                             <option value="closed">Closed</option>
                           </select>
-                          <select
-                            value={ticket.priority}
-                            disabled={isBusy(ticket.id)}
-                            onChange={(e) => updateTicket(ticket.id, { priority: e.target.value })}
-                            className="rounded-lg border border-ink/15 px-3 py-2 text-sm outline-none focus:border-leaf"
-                          >
+                          <select value={ticket.priority} disabled={savingId === ticket.id} onChange={(e) => updateTicket(ticket.id, { priority: e.target.value })} className="rounded-lg border border-ink/15 px-3 py-2 text-sm outline-none focus:border-leaf">
                             <option value="low">Low</option>
                             <option value="medium">Medium</option>
                             <option value="high">High</option>
                             <option value="urgent">Urgent</option>
                           </select>
-                          <button
-                            disabled={isBusy(ticket.id)}
-                            onClick={() => updateTicket(ticket.id, { assignedTo: user?.id })}
-                            className="rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                          >
-                            Assign to me
-                          </button>
+                          <button disabled={savingId === ticket.id} onClick={() => updateTicket(ticket.id, { assignedTo: user?.id })} className="rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Assign to me</button>
                         </div>
                       </article>
                     ))}
@@ -588,16 +425,16 @@ export default function AdminDashboardPage() {
                 <div className="rounded-xl border border-ink/10 bg-white p-5">
                   <div className="flex items-center gap-3">
                     <AlertCircle className="text-clay" size={22} />
-                    <h2 className="font-bold text-ink">Admin Role Required</h2>
+                    <h2 className="font-bold text-ink">Email Delivery Disabled</h2>
                   </div>
-                  <p className="mt-3 text-sm text-ink/60">This panel uses role-protected endpoints for event approvals, settlements, and support operations.</p>
+                  <p className="mt-3 text-sm text-ink/60">OTP codes are printed in backend server logs instead of being emailed.</p>
                 </div>
                 <div className="rounded-xl border border-ink/10 bg-white p-5">
                   <div className="flex items-center gap-3">
                     <ShieldCheck className="text-leaf" size={22} />
-                    <h2 className="font-bold text-ink">Connected Backend</h2>
+                    <h2 className="font-bold text-ink">Protected Actions</h2>
                   </div>
-                  <p className="mt-3 text-sm text-ink/60">{eventApi.defaults.baseURL}</p>
+                  <p className="mt-3 text-sm text-ink/60">Approvals, settlements, and ticket changes require an admin token.</p>
                 </div>
               </section>
             )}

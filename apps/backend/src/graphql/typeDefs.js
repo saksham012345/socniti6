@@ -50,6 +50,7 @@ const typeDefs = gql`
     description: String!
     category: String!
     imageUrl: String
+    paymentQr: String
     organizerId: ID!
     organizerName: String
     locationName: String!
@@ -149,6 +150,7 @@ const typeDefs = gql`
     description: String!
     category: String!
     imageUrl: String
+    paymentQr: String
     organizerName: String
     locationName: String!
     address: String
@@ -166,6 +168,7 @@ const typeDefs = gql`
     description: String
     category: String
     imageUrl: String
+    paymentQr: String
     locationName: String
     address: String
     city: String

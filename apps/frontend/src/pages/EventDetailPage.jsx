@@ -10,8 +10,6 @@ import {
 import DonationModal from "../components/DonationModal";
 import EventChat from "../components/EventChat";
 
-const SAMPLE_EVENTS = {};
-
 export default function EventDetailPage() {
   const { slug } = useParams();
   const { user } = useAuth();
@@ -38,20 +36,6 @@ export default function EventDetailPage() {
 
   const loadEvent = async () => {
     setLoading(true);
-    // Check sample events first
-    if (SAMPLE_EVENTS[slug]) {
-      const base = SAMPLE_EVENTS[slug];
-      // Restore local registration state from sessionStorage
-      const stored = sessionStorage.getItem(`registered_${slug}`);
-      if (stored === "true") {
-        setIsRegistered(true);
-        setEvent({ ...base, currentParticipants: base.currentParticipants + 1 });
-      } else {
-        setEvent(base);
-      }
-      setLoading(false);
-      return;
-    }
     try {
       const res = await eventApi.get(`/api/events/${slug}`);
       const ev = res.data.event;
@@ -74,14 +58,6 @@ export default function EventDetailPage() {
 
   const handleRegister = async () => {
     if (!user) { toast.error("Please login to register"); navigate("/login"); return; }
-    if (event.isSample) {
-      // Update count locally and persist to sessionStorage
-      setEvent(prev => ({ ...prev, currentParticipants: prev.currentParticipants + 1 }));
-      setIsRegistered(true);
-      sessionStorage.setItem(`registered_${slug}`, "true");
-      toast.success("Registered successfully!");
-      return;
-    }
     setRegistering(true);
     try {
       const res = await eventApi.post(`/api/events/${slug}/register`, {
@@ -103,13 +79,6 @@ export default function EventDetailPage() {
   };
 
   const handleCancelRegistration = async () => {
-    if (event.isSample) {
-      setEvent(prev => ({ ...prev, currentParticipants: Math.max(0, prev.currentParticipants - 1) }));
-      setIsRegistered(false);
-      sessionStorage.removeItem(`registered_${slug}`);
-      toast.success("Registration cancelled");
-      return;
-    }
     try {
       const res = await eventApi.post(`/api/events/${slug}/cancel`);
       toast.success("Registration cancelled");
@@ -148,7 +117,6 @@ export default function EventDetailPage() {
           <div className="rounded-[2rem] bg-white p-8 shadow-soft">
             <div className="flex items-center gap-3 flex-wrap">
               <span className="rounded-full bg-leaf/10 px-3 py-1 text-xs font-bold uppercase text-leaf">{event.category}</span>
-              {event.isSample && <span className="rounded-full bg-mist px-2 py-0.5 text-xs text-ink/50">Sample Event</span>}
               <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${isFull ? "bg-ember/10 text-ember" : "bg-leaf/10 text-leaf"}`}>
                 {isFull ? "Full" : `${spotsLeft} spots left`}
               </span>
@@ -184,12 +152,7 @@ export default function EventDetailPage() {
                   <MessageCircle size={18} />{showChat ? "Hide" : "Open Chat"}
                 </button>
               </div>
-              {showChat && !event.isSample && <EventChat eventId={event.id} />}
-              {showChat && event.isSample && (
-                <div className="rounded-2xl bg-mist p-6 text-center text-sm text-ink/60">
-                  Chat is available for real events. This is a sample event.
-                </div>
-              )}
+              {showChat && <EventChat eventId={event.id} />}
             </div>
           )}
         </div>
@@ -221,10 +184,14 @@ export default function EventDetailPage() {
             {event.paymentQr && (
               <div className="mt-3">
                 <p className="text-xs text-ink/50">Payment QR / Link</p>
-                <div className="mt-2 flex items-center gap-2">
-                  <input value={event.paymentQr} readOnly className="flex-1 rounded-lg border border-ink/15 px-3 py-2 text-sm bg-gray-50" />
-                  <button onClick={()=>{ navigator.clipboard.writeText(event.paymentQr); toast.success('Copied payment link'); }} className="rounded-lg bg-leaf px-3 py-2 text-sm font-semibold text-white">Copy</button>
-                </div>
+                {event.paymentQr.startsWith("data:image/") ? (
+                  <img src={event.paymentQr} alt="Payment QR" className="mt-2 h-40 w-40 rounded-xl border border-ink/10 bg-white object-contain p-2" />
+                ) : (
+                  <div className="mt-2 flex items-center gap-2">
+                    <input value={event.paymentQr} readOnly className="flex-1 rounded-lg border border-ink/15 px-3 py-2 text-sm bg-gray-50" />
+                    <button onClick={()=>{ navigator.clipboard.writeText(event.paymentQr); toast.success('Copied payment link'); }} className="rounded-lg bg-leaf px-3 py-2 text-sm font-semibold text-white">Copy</button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -267,7 +234,7 @@ export default function EventDetailPage() {
       </div>
 
       <DonationModal isOpen={showDonationModal} onClose={() => setShowDonationModal(false)}
-        eventId={event.id} eventTitle={event.title} isSample={event.isSample} />
+        eventId={event.id} eventTitle={event.title} paymentQr={event.paymentQr} />
     </div>
   );
 }

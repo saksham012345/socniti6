@@ -1,22 +1,13 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { eventApi } from "../lib/api";
+import api, { eventApi } from "../lib/api";
 import {
   Calendar, Heart, Users, MapPin, ChevronRight,
   Clock, CheckCircle, AlertCircle, Loader2, Plus, Star, Ticket
 } from "lucide-react";
 import DonationModal from "../components/DonationModal";
 import toast from "react-hot-toast";
-
-const SAMPLE_JOINED = [
-  { id: "s1", title: "Eye Donation Awareness Camp", city: "Mumbai", category: "Healthcare", startsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(), currentParticipants: 46, maxParticipants: 100, slug: "eye-donation-awareness-camp-mumbai", status: "upcoming" },
-  { id: "s2", title: "Juhu Beach Cleanup Drive", city: "Mumbai", category: "Environment", startsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), currentParticipants: 79, maxParticipants: 150, slug: "beach-cleanup-drive-juhu", status: "upcoming" },
-];
-const SAMPLE_DONATIONS = [
-  { id: "d1", eventTitle: "Blood Donation Camp", type: "monetary", amount: 500, status: "completed", createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString() },
-  { id: "d2", eventTitle: "Free Medical Camp", type: "item", item: "Medical Kits", quantity: 5, status: "completed", createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString() },
-];
 
 function StatCard({ label, value, icon, color, bg }) {
   return (
@@ -72,8 +63,8 @@ function EventCard({ event, navigate, onDonate }) {
 export default function UserDashboardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [joinedEvents, setJoinedEvents] = useState(SAMPLE_JOINED);
-  const [donations, setDonations] = useState(SAMPLE_DONATIONS);
+  const [joinedEvents, setJoinedEvents] = useState([]);
+  const [donations, setDonations] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(false);
   const [donateTarget, setDonateTarget] = useState(null);
@@ -84,12 +75,28 @@ export default function UserDashboardPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const res = await eventApi.get("/api/events");
-      const real = (res.data.events || []).filter(e => new Date(e.startsAt) > new Date());
-      if (real.length > 0) setJoinedEvents(real.slice(0, 4));
-
-      const ticketRes = await eventApi.get("/api/tickets");
+      const [ticketRes, donationRes] = await Promise.all([
+        eventApi.get("/api/tickets"),
+        api.post("/graphql", {
+          query: `
+            query MyDonations {
+              myDonations {
+                id
+                eventId
+                amount
+                item
+                quantity
+                type
+                status
+                message
+                createdAt
+              }
+            }
+          `
+        })
+      ]);
       setTickets(ticketRes.data.tickets || []);
+      setDonations(donationRes.data.data?.myDonations || []);
     } catch (err) {
       console.error("Error loading data:", err);
     }
@@ -181,7 +188,7 @@ export default function UserDashboardPage() {
                     <Heart size={18} className="text-ember" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-ink truncate">{d.eventTitle}</p>
+                    <p className="text-sm font-semibold text-ink truncate">Event #{String(d.eventId).slice(0, 8)}</p>
                     <p className="text-xs text-ink/50 mt-0.5">
                       {d.type === "monetary" ? `₹${d.amount}` : `${d.quantity}x ${d.item}`}
                       {" · "}{new Date(d.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
@@ -271,7 +278,7 @@ export default function UserDashboardPage() {
 
       {donateTarget && (
         <DonationModal isOpen={!!donateTarget} onClose={() => setDonateTarget(null)}
-          eventId={donateTarget.id} eventTitle={donateTarget.title} isSample={donateTarget.isSample} />
+          eventId={donateTarget.id} eventTitle={donateTarget.title} paymentQr={donateTarget.paymentQr} />
       )}
     </div>
   );

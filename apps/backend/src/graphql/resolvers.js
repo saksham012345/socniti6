@@ -29,7 +29,7 @@ const serializeEvent = async (event, vc) => {
   if (event.loadParticipants) await event.loadParticipants();
   return {
     id: event.id, title: event.title, slug: event.slug, description: event.description,
-    category: event.category, imageUrl: event.imageUrl, organizerId: event.organizerId,
+    category: event.category, imageUrl: event.imageUrl, paymentQr: event.paymentQr || null, organizerId: event.organizerId,
     organizerName: event.organizerName, locationName: event.locationName, address: event.address,
     city: event.city, state: event.state, coordinates: event.coordinates,
     startsAt: toIso(event.startsAt), endsAt: event.endsAt ? toIso(event.endsAt) : null,
@@ -134,9 +134,8 @@ const resolvers = {
       } else {
         await User.create({ fullName, username: nu, email: ne, password: hashedPassword, role: role||"user", otp, otpExpires, verified: false });
       }
-      // Fire email async — don't block the response on email delivery
       sendOtpEmail(ne, otp, fullName).catch(err => console.error("Email send error:", err.message));
-      return { success: true, message: `OTP sent to ${ne}. Check your email or server logs.` };
+      return { success: true, message: "Email delivery is disabled. Use the OTP shown in the server logs." };
     },
 
     verifySignupOtp: async (_, { email, otp }) => {
@@ -169,7 +168,7 @@ const resolvers = {
       if (!user) user = await User.create({ fullName, username: ne.split("@")[0], email: ne, password: hashedPassword, role: role||"user", otp, otpExpires, verified: false });
       else { user.fullName = fullName; user.password = hashedPassword; user.otp = otp; user.otpExpires = otpExpires; await user.save(); }
       sendOtpEmail(ne, otp, fullName).catch(err => console.error("Email send error:", err.message));
-      return { success: true, message: "OTP sent to your email" };
+      return { success: true, message: "Email delivery is disabled. Use the OTP shown in the server logs." };
     },
 
     sendOtp: async (_, { email }) => {
@@ -179,7 +178,7 @@ const resolvers = {
       user.otp = otp; user.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
       await user.save();
       sendOtpEmail(email, otp, user.fullName).catch(err => console.error("Email send error:", err.message));
-      return { success: true, message: "OTP sent" };
+      return { success: true, message: "Email delivery is disabled. Use the OTP shown in the server logs." };
     },
 
     verifyOtp: async (_, { email, otp }) => {

@@ -125,10 +125,10 @@ export default function ModernSignupPage() {
             <span className="text-3xl font-bold text-white">S</span>
           </div>
           <h1 className="font-display text-3xl font-bold text-ink">
-            {step === 1 ? "Create Account" : "Verify Your Email"}
+            {step === 1 ? "Create Account" : "Verify Your Account"}
           </h1>
           <p className="text-ink/70 mt-2">
-            {step === 1 ? "Join SOCNITI and make an impact" : "Enter the OTP sent to your email"}
+            {step === 1 ? "Join SOCNITI and make an impact" : "Enter the OTP shown in the server logs"}
           </p>
         </div>
 
@@ -270,9 +270,9 @@ export default function ModernSignupPage() {
                 <div className="flex items-start gap-3">
                   <Mail className="h-5 w-5 text-leaf mt-0.5" />
                   <div>
-                    <p className="text-sm font-semibold text-ink">Check your email</p>
+                    <p className="text-sm font-semibold text-ink">Email delivery is disabled</p>
                     <p className="text-sm text-ink/70 mt-1">
-                      We sent a 6-digit code to <strong>{formData.email}</strong>
+                      Ask an admin for the 6-digit OTP printed in the backend server logs for <strong>{formData.email}</strong>.
                     </p>
                   </div>
                 </div>

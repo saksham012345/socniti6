@@ -77,7 +77,7 @@ export default function LoginPage() {
       if (response.data.errors) throw new Error(response.data.errors[0].message);
 
       const data = response.data.data.sendOtp;
-      showSuccess(data.message || "OTP has been sent to your email.");
+      showSuccess(data.message || "Email delivery is disabled. Use the OTP shown in the server logs.");
       setCountdown(30);
       setMode("otp-verify");
     } catch (err) {
@@ -115,7 +115,7 @@ export default function LoginPage() {
         if (res.data.errors) throw new Error(res.data.errors[0].message);
 
         const data = res.data.data.register;
-        showSuccess(data.message || "OTP has been sent to your email.");
+        showSuccess(data.message || "Email delivery is disabled. Use the OTP shown in the server logs.");
         setCountdown(30);
         setOtp(["", "", "", "", "", ""]);
         setForm((current) => ({ ...current, password: "", confirmPassword: "" }));
@@ -165,10 +165,10 @@ export default function LoginPage() {
     <div className="min-h-[calc(100vh-80px)] bg-gray-50 dark:bg-gray-900/50 flex flex-col pt-12 sm:px-6 lg:px-8 font-sans transition-colors duration-200">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <h2 className="mt-6 text-center text-3xl tracking-tight font-extrabold text-gray-900 dark:text-white">
-          {mode === "register" ? "Create an account" : mode === "otp-verify" ? "Verify your email" : "Welcome back"}
+          {mode === "register" ? "Create an account" : mode === "otp-verify" ? "Verify your account" : "Welcome back"}
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
-          {mode === "register" ? "Start building with us today." : mode === "otp-verify" ? "We sent a 6-digit code to your email." : "Log in to your account to continue."}
+          {mode === "register" ? "Start building with us today." : mode === "otp-verify" ? "Email delivery is disabled. Use the OTP shown in the server logs." : "Log in to your account to continue."}
         </p>
       </div>
 

@@ -10,28 +10,7 @@ import {
 import CreateEventModal from "../components/CreateEventModal";
 import toast from "react-hot-toast";
 
-const SAMPLE_EVENTS = [
-  {
-    id: "s1", title: "Eye Donation Awareness Camp", slug: "eye-donation-awareness-camp-mumbai",
-    category: "Healthcare", city: "Mumbai", state: "Maharashtra",
-    startsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-    currentParticipants: 46, maxParticipants: 100, waitlistCount: 3, status: "upcoming",
-    participants: [
-      { userId: "u1", fullName: "Rahul Sharma", email: "rahul@example.com", joinedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() },
-      { userId: "u2", fullName: "Priya Mehta", email: "priya@example.com", joinedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString() },
-      { userId: "u3", fullName: "Amit Kumar", email: "amit@example.com", joinedAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString() },
-    ]
-  },
-  {
-    id: "s2", title: "Tree Plantation Drive", slug: "tree-plantation-drive-bangalore",
-    category: "Environment", city: "Bangalore", state: "Karnataka",
-    startsAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
-    currentParticipants: 234, maxParticipants: 500, waitlistCount: 0, status: "upcoming",
-    participants: [
-      { userId: "u4", fullName: "Sneha Patel", email: "sneha@example.com", joinedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() },
-    ]
-  }
-];
+
 
 function ParticipantsModal({ event, onClose }) {
   if (!event) return null;
@@ -105,7 +84,7 @@ function ParticipantsModal({ event, onClose }) {
 export default function OrganizerDashboardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [events, setEvents] = useState(SAMPLE_EVENTS);
+  const [events, setEvents] = useState([]);
   const [analytics, setAnalytics] = useState({ totalEvents: 2, totalParticipants: 280, totalWaitlist: 3 });
   const [loading, setLoading] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
@@ -118,9 +97,11 @@ export default function OrganizerDashboardPage() {
     setLoading(true);
     try {
       const res = await eventApi.get("/api/events/dashboard");
-      setEvents(res.data.events?.length > 0 ? res.data.events : SAMPLE_EVENTS);
+      setEvents(res.data.events || []);
       if (res.data.analytics) setAnalytics(res.data.analytics);
-    } catch { /* keep sample */ }
+    } catch (err) {
+      toast.error("Failed to load dashboard");
+    }
     setLoading(false);
   };
 

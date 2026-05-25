@@ -7,20 +7,10 @@ import {
   ChevronRight, Loader2
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { eventApi } from "../lib/api";
+import api, { eventApi } from "../lib/api";
 import CreateEventModal from "../components/CreateEventModal";
 
 const TABS = ["Overview", "Joined", "Hosted", "Donated"];
-
-// Sample activity data for demo
-const SAMPLE_JOINED = [
-  { id: "s1", title: "Eye Donation Awareness Camp", city: "Mumbai", category: "Healthcare", startsAt: "2026-04-15T10:00:00Z", status: "upcoming" },
-  { id: "s2", title: "Juhu Beach Cleanup Drive", city: "Mumbai", category: "Environment", startsAt: "2026-04-20T07:00:00Z", status: "upcoming" },
-];
-const SAMPLE_DONATED = [
-  { id: "d1", eventTitle: "Blood Donation Camp", type: "monetary", amount: 500, createdAt: "2026-04-10T10:00:00Z" },
-  { id: "d2", eventTitle: "Free Medical Camp", type: "item", item: "Medical Kits", quantity: 5, createdAt: "2026-04-08T10:00:00Z" },
-];
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
@@ -30,8 +20,8 @@ export default function ProfilePage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [hostedEvents, setHostedEvents] = useState([]);
-  const [joinedEvents, setJoinedEvents] = useState(SAMPLE_JOINED);
-  const [donations, setDonations] = useState(SAMPLE_DONATED);
+  const [joinedEvents, setJoinedEvents] = useState([]);
+  const [donations, setDonations] = useState([]);
 
   const [formData, setFormData] = useState({
     fullName: user?.fullName || "",
@@ -47,11 +37,30 @@ export default function ProfilePage() {
   const loadActivity = async () => {
     setLoading(true);
     try {
-      // Load hosted events
-      const res = await eventApi.get("/api/events/dashboard");
-      setHostedEvents(res.data.events || []);
+      const [hostedRes, donationsRes] = await Promise.all([
+        eventApi.get("/api/events/dashboard"),
+        api.post("/graphql", {
+          query: `
+            query MyDonations {
+              myDonations {
+                id
+                eventId
+                amount
+                item
+                quantity
+                type
+                status
+                message
+                createdAt
+              }
+            }
+          `
+        })
+      ]);
+      setHostedEvents(hostedRes.data.events || []);
+      setDonations(donationsRes.data.data?.myDonations || []);
     } catch {
-      // Keep sample data on failure
+      toast.error("Could not load profile activity");
     } finally {
       setLoading(false);
     }
@@ -360,7 +369,7 @@ function DonationRow({ donation, full }) {
           <Heart size={18} />
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-ink truncate">{donation.eventTitle}</p>
+          <p className="text-sm font-semibold text-ink truncate">Event #{String(donation.eventId).slice(0, 8)}</p>
           <p className="text-xs text-ink/50 mt-0.5">
             {donation.type === "monetary" ? `₹${donation.amount}` : `${donation.quantity}x ${donation.item}`}
             <span className="mx-1">·</span>

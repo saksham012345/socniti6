@@ -3,7 +3,7 @@ import { X, DollarSign, Package, Loader2 } from "lucide-react";
 import api from "../lib/api";
 import toast from "react-hot-toast";
 
-export default function DonationModal({ isOpen, onClose, eventId, eventTitle, isSample }) {
+export default function DonationModal({ isOpen, onClose, eventId, eventTitle, paymentQr }) {
   const [loading, setLoading] = useState(false);
   const [donationType, setDonationType] = useState("monetary");
   const [formData, setFormData] = useState({
@@ -33,14 +33,6 @@ export default function DonationModal({ isOpen, onClose, eventId, eventTitle, is
     setLoading(true);
 
     try {
-      if (isSample) {
-        await new Promise(r => setTimeout(r, 800));
-        toast.success("Thank you for your donation! (Demo mode)");
-        onClose();
-        setFormData({ amount: "", item: "", quantity: "", message: "" });
-        return;
-      }
-
       const response = await api.post("/graphql", {
         query: `
           mutation CreateDonation($input: CreateDonationInput!) {
@@ -138,21 +130,36 @@ export default function DonationModal({ isOpen, onClose, eventId, eventTitle, is
 
           {/* Monetary Donation */}
           {donationType === "monetary" && (
-            <div>
-              <label className="block text-sm font-semibold text-ink mb-2">
-                Amount (₹) *
-              </label>
-              <input
-                type="number"
-                name="amount"
-                value={formData.amount}
-                onChange={handleChange}
-                className="w-full rounded-2xl border border-ink/15 px-4 py-3 focus:ring-2 focus:ring-leaf focus:border-transparent"
-                placeholder="500"
-                min="1"
-                required
-              />
-            </div>
+            <>
+              {paymentQr && (
+                <div className="rounded-2xl border border-ink/10 bg-mist p-4">
+                  <p className="mb-3 text-sm font-semibold text-ink">Payment QR / Link</p>
+                  {paymentQr.startsWith("data:image/") ? (
+                    <img src={paymentQr} alt="Payment QR" className="mx-auto h-44 w-44 rounded-xl bg-white object-contain p-2" />
+                  ) : (
+                    <div className="flex gap-2">
+                      <input value={paymentQr} readOnly className="min-w-0 flex-1 rounded-lg border border-ink/15 bg-white px-3 py-2 text-sm" />
+                      <button type="button" onClick={() => { navigator.clipboard.writeText(paymentQr); toast.success("Payment link copied"); }} className="rounded-lg bg-leaf px-3 py-2 text-sm font-semibold text-white">Copy</button>
+                    </div>
+                  )}
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-semibold text-ink mb-2">
+                  Amount (₹) *
+                </label>
+                <input
+                  type="number"
+                  name="amount"
+                  value={formData.amount}
+                  onChange={handleChange}
+                  className="w-full rounded-2xl border border-ink/15 px-4 py-3 focus:ring-2 focus:ring-leaf focus:border-transparent"
+                  placeholder="500"
+                  min="1"
+                  required
+                />
+              </div>
+            </>
           )}
 
           {/* Item Donation */}
