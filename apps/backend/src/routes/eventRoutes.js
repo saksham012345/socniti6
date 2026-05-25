@@ -45,6 +45,7 @@ router.post("/:slug/approve", requireAuth, requireRole("admin"), async (req, res
         await event.save();
 
     res.json({ message: "Event approved", event, verification });
+    try { const io = req.app.get("io"); if (io) io.emit("event-updated", await (async ()=>{ const ev = await Event.findById(event.id); return ev ? await ev.loadParticipants().then(()=>ev).then(e=>({ id: e.id, slug: e.slug, organizerVerified: e.organizerVerified })) : null; })()); } catch (e) { console.warn("Socket emit error (approve):", e.message); }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -80,6 +81,7 @@ router.post("/:slug/reject", requireAuth, requireRole("admin"), async (req, res)
     );
 
     res.json({ message: "Event rejected", event, verification });
+    try { const io = req.app.get("io"); if (io) io.emit("event-updated", await Event.findById(event.id)); } catch (e) { console.warn("Socket emit error (reject):", e.message); }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

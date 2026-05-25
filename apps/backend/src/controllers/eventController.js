@@ -82,6 +82,12 @@ exports.createEvent = async (req, res) => {
       organizerVerified: req.user.role === "admin" ? true : false
     });
     if (event.status === "pending") await EventVerification.create({ eventId: event.id });
+    // Emit real-time event to connected clients
+    try {
+      const io = req.app.get("io");
+      if (io) io.emit("event-created", await serializeEvent(event));
+    } catch (e) { console.warn("Socket emit error (createEvent):", e.message); }
+
     res.status(201).json({ message: "Event created", event: await serializeEvent(event) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 };
@@ -96,6 +102,7 @@ exports.updateEvent = async (req, res) => {
     if (req.body.paymentQr !== undefined) event.paymentQr = req.body.paymentQr;
     Object.assign(event, req.body);
     await event.save();
+    try { const io = req.app.get("io"); if (io) io.emit("event-updated", await serializeEvent(event)); } catch (e) { console.warn("Socket emit error (updateEvent):", e.message); }
     res.json({ message: "Event updated", event: await serializeEvent(event) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 };
@@ -106,6 +113,7 @@ exports.deleteEvent = async (req, res) => {
     if (!event) return res.status(404).json({ message: "Event not found" });
     if (event.organizerId !== (req.user.sub||req.user.id) && req.user.role !== "admin") return res.status(403).json({ message: "Only the organizer or admin can delete" });
     await event.deleteOne();
+    try { const io = req.app.get("io"); if (io) io.emit("event-deleted", { id: event.id, slug: event.slug }); } catch (e) { console.warn("Socket emit error (deleteEvent):", e.message); }
     res.json({ message: "Event deleted" });
   } catch (err) { res.status(500).json({ error: err.message }); }
 };
@@ -126,6 +134,7 @@ exports.registerForEvent = async (req, res) => {
       event.waitlist.push(attendee); event.waitlistCount++; message = "Added to waitlist";
     }
     await event.save();
+    try { const io = req.app.get("io"); if (io) io.emit("event-updated", await serializeEvent(event)); } catch (e) { console.warn("Socket emit error (registerForEvent):", e.message); }
     res.json({ message, event: await serializeEvent(event) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 };
@@ -146,6 +155,7 @@ exports.cancelRegistration = async (req, res) => {
       event.waitlist.splice(wi, 1); event.waitlistCount = Math.max(0, event.waitlistCount-1);
     }
     await event.save();
+    try { const io = req.app.get("io"); if (io) io.emit("event-updated", await serializeEvent(event)); } catch (e) { console.warn("Socket emit error (cancelRegistration):", e.message); }
     res.json({ message: "Registration cancelled", event: await serializeEvent(event) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 };

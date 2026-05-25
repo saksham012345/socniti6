@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { eventApi } from "../lib/api";
+import socketClient from "../lib/socket";
 import { Plus, MapPin, Calendar, Users, UserPlus, Heart, X, Loader2, RefreshCw, Clock } from "lucide-react";
 import CreateEventModal from "../components/CreateEventModal";
 import DonationModal from "../components/DonationModal";
@@ -177,7 +178,22 @@ export default function EventsPage() {
   useEffect(() => {
     loadEvents();
     pollRef.current = setInterval(() => loadEvents(true), 30000);
-    return () => clearInterval(pollRef.current);
+    // connect socket
+    const s = socketClient.connectSocket();
+    const onCreated = (ev) => setEvents(prev => {
+      // ignore samples
+      if (prev.find(e => e.id === ev.id)) return prev;
+      return [...prev.filter(e=>e.isSample), ev];
+    });
+    const onUpdated = (ev) => setEvents(prev => prev.map(e => e.id === ev.id ? ev : e));
+    const onDeleted = ({ id, slug }) => setEvents(prev => prev.filter(e => e.id !== id && e.slug !== slug));
+    s.on("event-created", onCreated);
+    s.on("event-updated", onUpdated);
+    s.on("event-deleted", onDeleted);
+    return () => {
+      clearInterval(pollRef.current);
+      try { s.off("event-created", onCreated); s.off("event-updated", onUpdated); s.off("event-deleted", onDeleted); } catch {};
+    };
   }, [loadEvents]);
 
   // Filter: only future events for samples, backend already filters real events

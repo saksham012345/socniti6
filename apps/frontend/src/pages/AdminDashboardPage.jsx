@@ -102,10 +102,53 @@ function SettlementRow({ settlement, onSettle }) {
             disabled={disabled}
             onChange={(e) => setAmount(e.target.value)}
             className="w-28 rounded-lg border border-ink/15 px-3 py-2 text-sm outline-none focus:border-leaf disabled:bg-gray-100"
-          />
-          <input
-            value={notes}
-            disabled={disabled}
+          </>
+        )
+      }
+
+      {/* Admin Edit Event Modal */}
+      {editEvent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4">
+          <div className="max-w-2xl w-full max-h-[90vh] overflow-y-auto bg-white rounded-[1rem] shadow-soft">
+            <div className="border-b border-ink/10 px-6 py-4 flex items-center justify-between">
+              <h3 className="font-bold text-ink">Edit Event — {editEvent.title}</h3>
+              <button onClick={() => setEditEvent(null)} className="h-9 w-9 rounded-full hover:bg-mist flex items-center justify-center"><XCircle size={16} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-ink mb-2">Payment QR / Link</label>
+                <input value={editEvent.paymentQr || ""} onChange={(e) => setEditEvent(s => ({ ...s, paymentQr: e.target.value }))}
+                  className="w-full rounded-2xl border border-ink/15 px-4 py-3" placeholder="Payment link or QR data" />
+                <p className="text-xs text-ink/50 mt-1">Optional: paste URL, UPI link or QR data for donations.</p>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-semibold text-ink mb-2">Needed items (in-kind)</label>
+                  <button onClick={addEditDonationItem} className="text-sm text-leaf font-semibold">Add item</button>
+                </div>
+                <div className="space-y-2">
+                  {(editEvent.donationNeeds||[]).map((it, idx) => (
+                    <div key={idx} className="flex gap-2">
+                      <input value={it.item} onChange={(e)=>updateEditDonationItem(idx,'item',e.target.value)} placeholder="Item" className="flex-1 rounded-lg border border-ink/15 px-3 py-2" />
+                      <input type="number" min="1" value={it.quantity} onChange={(e)=>updateEditDonationItem(idx,'quantity',parseInt(e.target.value||1))} className="w-24 rounded-lg border border-ink/15 px-3 py-2" />
+                      <button onClick={()=>removeEditDonationItem(idx)} className="rounded-lg bg-ember px-3 py-2 text-white">Remove</button>
+                    </div>
+                  ))}
+                  {(editEvent.donationNeeds||[]).length===0 && <p className="text-sm text-ink/50">No items added.</p>}
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button disabled={editLoading} onClick={saveEditEvent} className="rounded-lg bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{editLoading ? 'Saving...' : 'Save'}</button>
+                <button onClick={() => setEditEvent(null)} className="rounded-lg border border-ink/10 px-4 py-2 text-sm">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      </main>
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Notes"
             className="min-w-0 flex-1 rounded-lg border border-ink/15 px-3 py-2 text-sm outline-none focus:border-leaf disabled:bg-gray-100"
@@ -133,6 +176,8 @@ export default function AdminDashboardPage() {
   const [ticketFilter, setTicketFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState("");
+  const [editEvent, setEditEvent] = useState(null);
+  const [editLoading, setEditLoading] = useState(false);
 
   const stats = useMemo(() => {
     const totalDonations = settlements.reduce((sum, item) => sum + item.totalAmount, 0);
@@ -150,6 +195,20 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     fetchData();
   }, [activeTab, ticketFilter]);
+
+  // Real-time updates for admin panel
+  useEffect(() => {
+    const socket = require("../lib/socket").connectSocket();
+    const refresh = () => fetchData();
+    socket.on("event-created", refresh);
+    socket.on("event-updated", refresh);
+    socket.on("event-deleted", refresh);
+    socket.on("donation-created", refresh);
+    socket.on("settlement-updated", refresh);
+    return () => {
+      try { socket.off("event-created", refresh); socket.off("event-updated", refresh); socket.off("event-deleted", refresh); socket.off("donation-created", refresh); socket.off("settlement-updated", refresh); } catch {}
+    };
+  }, [activeTab]);
 
   const fetchData = async () => {
     try {
@@ -195,6 +254,33 @@ export default function AdminDashboardPage() {
     } catch (err) {
       toast.error(err.response?.data?.message || `Failed to ${action} event`);
     } finally {
+      setSavingId("");
+    }
+  };
+
+  const openEdit = (event) => {
+    // clone and ensure donationNeeds array
+    setEditEvent({ ...event, donationNeeds: event.donationNeeds ? event.donationNeeds.map(d => ({ ...d })) : [] });
+  };
+
+  const addEditDonationItem = () => setEditEvent(e => ({ ...e, donationNeeds: [...(e.donationNeeds||[]), { item: "", quantity: 1, fulfilled: 0 }] }));
+  const updateEditDonationItem = (idx, key, value) => setEditEvent(e => { const items = [...(e.donationNeeds||[])]; items[idx] = { ...items[idx], [key]: value }; return { ...e, donationNeeds: items }; });
+  const removeEditDonationItem = (idx) => setEditEvent(e => { const items = [...(e.donationNeeds||[])]; items.splice(idx,1); return { ...e, donationNeeds: items }; });
+
+  const saveEditEvent = async () => {
+    if (!editEvent) return;
+    try {
+      setEditLoading(true);
+      setSavingId(editEvent.slug);
+      const payload = { paymentQr: editEvent.paymentQr || null, donationNeeds: editEvent.donationNeeds || [] };
+      const res = await eventApi.patch(`/api/events/${editEvent.slug}`, payload);
+      toast.success(res.data?.message || "Event updated");
+      setEditEvent(null);
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to update event");
+    } finally {
+      setEditLoading(false);
       setSavingId("");
     }
   };
@@ -367,6 +453,12 @@ export default function AdminDashboardPage() {
                             className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-ember px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
                           >
                             <XCircle size={16} /> Reject
+                          </button>
+                          <button
+                            onClick={() => openEdit(event)}
+                            className="inline-flex items-center gap-2 rounded-lg border border-ink/10 px-3 py-2 text-sm font-semibold text-ink hover:bg-mist"
+                          >
+                            Edit
                           </button>
                         </div>
                       </article>

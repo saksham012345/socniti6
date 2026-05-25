@@ -10,42 +10,7 @@ import {
 import DonationModal from "../components/DonationModal";
 import EventChat from "../components/EventChat";
 
-const SAMPLE_EVENTS = {
-  "eye-donation-awareness-camp-mumbai": { id: "sample-1", title: "Eye Donation Awareness Camp", description: "Join us for an eye donation awareness camp. Learn about the importance of eye donation and pledge to donate your eyes. Free eye checkup available for all attendees. Doctors from leading hospitals will be present to answer your questions about eye donation.", category: "Healthcare", locationName: "Lions Club Community Center", city: "Mumbai", state: "Maharashtra", startsAt: (() => { const d = new Date(); d.setDate(d.getDate() + 3); return d.toISOString(); })(), currentParticipants: 45, maxParticipants: 100, slug: "eye-donation-awareness-camp-mumbai", isSample: true, organizer: { fullName: "Dr. Priya Sharma", username: "drpriya" } },
-  "beach-cleanup-drive-juhu": { id: "sample-2", title: "Juhu Beach Cleanup Drive", description: "Help us clean Juhu Beach and make it plastic-free. Bring your friends and family for a morning of community service. Gloves, bags, and refreshments will be provided.", category: "Environment", locationName: "Juhu Beach", city: "Mumbai", state: "Maharashtra", startsAt: (() => { const d = new Date(); d.setDate(d.getDate() + 5); return d.toISOString(); })(), currentParticipants: 78, maxParticipants: 150, slug: "beach-cleanup-drive-juhu", isSample: true, organizer: { fullName: "Rahul Mehta", username: "rahulmehta" } },
-  "free-medical-camp-delhi": {
-    id: "sample-3", title: "Free Medical Health Camp",
-    description: "Free health checkup for underprivileged communities. General screening, blood pressure, diabetes testing, and doctor consultations available. Medicines will be distributed free of cost.",
-    category: "Healthcare", locationName: "Government School Ground", city: "Delhi", state: "Delhi",
-    startsAt: (() => { const d = new Date(); d.setDate(d.getDate() + 8); return d.toISOString(); })(), currentParticipants: 120, maxParticipants: 200,
-    slug: "free-medical-camp-delhi", isSample: true,
-    organizer: { fullName: "Dr. Amit Kumar", username: "dramit" }
-  },
-  "tree-plantation-drive-bangalore": {
-    id: "sample-4", title: "Tree Plantation Drive",
-    description: "Plant 1000 trees in one day! Join our mission to make Bangalore greener. Saplings and tools will be provided. Refreshments included. Certificate of participation for all volunteers.",
-    category: "Environment", locationName: "Cubbon Park", city: "Bangalore", state: "Karnataka",
-    startsAt: "2026-04-25T06:30:00Z", currentParticipants: 234, maxParticipants: 500,
-    slug: "tree-plantation-drive-bangalore", isSample: true,
-    organizer: { fullName: "Green Bangalore NGO", username: "greenbangalore" }
-  },
-  "blood-donation-camp-pune": {
-    id: "sample-5", title: "Blood Donation Camp",
-    description: "Donate blood, save lives. Organized by Indian Red Cross Society. All blood groups needed. Certificate of appreciation provided. Light refreshments after donation.",
-    category: "Healthcare", locationName: "City Hospital", city: "Pune", state: "Maharashtra",
-    startsAt: "2026-04-22T08:00:00Z", currentParticipants: 67, maxParticipants: 100,
-    slug: "blood-donation-camp-pune", isSample: true,
-    organizer: { fullName: "Red Cross Pune", username: "redcrosspune" }
-  },
-  "street-dog-vaccination-noida": {
-    id: "sample-6", title: "Street Dog Vaccination Drive",
-    description: "Help vaccinate street dogs against rabies. Veterinary team present. Volunteers needed for handling and documentation. Together we can make our streets safer for both humans and animals.",
-    category: "Animal Welfare", locationName: "Sector 15 Market", city: "Noida", state: "Uttar Pradesh",
-    startsAt: "2026-04-28T07:00:00Z", currentParticipants: 23, maxParticipants: 50,
-    slug: "street-dog-vaccination-noida", isSample: true,
-    organizer: { fullName: "Animal Care Society", username: "animalcare" }
-  }
-};
+const SAMPLE_EVENTS = {};
 
 export default function EventDetailPage() {
   const { slug } = useParams();
@@ -61,6 +26,15 @@ export default function EventDetailPage() {
   useEffect(() => {
     loadEvent();
   }, [slug]);
+
+  // listen for real-time updates to this event
+  useEffect(() => {
+    const socket = require("../lib/socket").connectSocket();
+    const onUpdated = (ev) => { if (ev && (ev.id === event?.id || ev.slug === slug)) setEvent(ev); };
+    socket.on("event-updated", onUpdated);
+    socket.on("event-deleted", ({ id, slug: s }) => { if (s === slug || id === event?.id) { toast.error("Event was removed"); navigate("/events"); } });
+    return () => { try { socket.off("event-updated", onUpdated); } catch {} };
+  }, [event?.id, slug]);
 
   const loadEvent = async () => {
     setLoading(true);

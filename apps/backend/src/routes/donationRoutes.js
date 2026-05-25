@@ -33,6 +33,7 @@ router.post("/", requireAuth, async (req, res) => {
     if (type === "monetary") {
       await DonationSettlement.addDonation(eventId, Number(amount));
     }
+    try { const io = req.app.get("io"); if (io) io.emit("donation-created", donation); } catch (e) { console.warn("Socket emit error (donation-create):", e.message); }
     res.status(201).json({ donation });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -72,6 +73,7 @@ router.post("/settlement/:eventId", requireAuth, requireRole("admin"), async (re
       Math.min(settledAmount, settlement.totalAmount),
       req.body.notes || null
     );
+    try { const io = req.app.get("io"); if (io) io.emit("settlement-updated", updated); } catch (e) { console.warn("Socket emit error (settlement-update):", e.message); }
     res.json({ settlement: updated });
   } catch (err) {
     res.status(500).json({ error: err.message });
