@@ -1,12 +1,22 @@
 import { io } from "socket.io-client";
+import { BACKEND_URL } from "./api";
 
 let socket = null;
+const noopSocket = {
+  connected: false,
+  on: () => noopSocket,
+  off: () => noopSocket,
+  emit: () => noopSocket,
+  disconnect: () => {},
+};
 
 export function connectSocket(token) {
   if (socket && socket.connected) return socket;
-  const url = process.env.REACT_APP_API_URL || "";
-  socket = io(url || window.location.origin, {
-    auth: { token: token || localStorage.getItem("socniti_token") || "" },
+  const authToken = token || localStorage.getItem("socniti_token") || "";
+  if (!authToken) return noopSocket;
+
+  socket = io(BACKEND_URL, {
+    auth: { token: authToken },
     autoConnect: true,
   });
   socket.on("connect_error", (err) => console.warn("Socket connect error:", err.message));
